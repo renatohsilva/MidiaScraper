@@ -266,9 +266,13 @@
                             <TextBox x:Name="UrlTextBox"
                                      Style="{StaticResource UrlInputStyle}"
                                      Text=""
-                                     KeyDown="UrlTextBox_KeyDown"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     VerticalContentAlignment="Top"
+                                     PreviewKeyDown="UrlTextBox_PreviewKeyDown"
                                      GotFocus="UrlTextBox_GotFocus"
-                                     LostFocus="UrlTextBox_LostFocus"/>
+                                     LostFocus="UrlTextBox_LostFocus"
+                                     AutomationProperties.Name="URL do vídeo — cole uma ou várias, uma por linha"/>
                         </Border>
                         <!-- Placeholder via Adorner workaround using overlayed TextBlock -->
 

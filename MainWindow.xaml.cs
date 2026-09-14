@@ -100,11 +100,20 @@ namespace MidiaScraper
             }
         }
 
-        private void UrlTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void UrlTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Enter)
-                DownloadButton_Click(sender, e);
+            if (e.Key != System.Windows.Input.Key.Enter) return;
+            if (System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+                return; // Shift+Enter insere uma quebra de linha (para digitar várias URLs manualmente)
+
+            // Enter sozinho continua disparando o download em vez de inserir uma quebra de linha.
+            e.Handled = true;
+            DownloadButton_Click(sender, e);
         }
+
+        private static bool IsValidHttpUrl(string url) =>
+            Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) &&
+            (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
 
         private async void DownloadButton_Click(object sender, RoutedEventArgs e)
         {
@@ -114,17 +123,15 @@ namespace MidiaScraper
                 return;
             }
 
-            string url = UrlTextBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(url))
+            var lines = UrlTextBox.Text
+                .Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => l.Length > 0)
+                .ToList();
+
+            if (lines.Count == 0)
             {
                 AppendLog("⚠️  Por favor insira uma URL.");
-                return;
-            }
-
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsedUrl) ||
-                (parsedUrl.Scheme != Uri.UriSchemeHttp && parsedUrl.Scheme != Uri.UriSchemeHttps))
-            {
-                AppendLog("❌ URL inválida. Use um endereço http:// ou https:// completo.");
                 return;
             }
 
@@ -134,7 +141,39 @@ namespace MidiaScraper
                 return;
             }
 
-            await StartDownloadAsync(url);
+            if (lines.Count == 1)
+            {
+                if (!IsValidHttpUrl(lines[0]))
+                {
+                    AppendLog("❌ URL inválida. Use um endereço http:// ou https:// completo.");
+                    return;
+                }
+                await StartDownloadAsync(lines[0]);
+                return;
+            }
+
+            var validUrls = new List<string>();
+            foreach (string line in lines)
+            {
+                if (IsValidHttpUrl(line))
+                    validUrls.Add(line);
+                else
+                    AppendLog($"⚠️  Ignorando linha inválida: {line}");
+            }
+
+            if (validUrls.Count == 0)
+            {
+                AppendLog("❌ Nenhuma URL válida encontrada.");
+                return;
+            }
+
+            if (validUrls.Count == 1)
+            {
+                await StartDownloadAsync(validUrls[0]);
+                return;
+            }
+
+            ShowManualUrlQueue(validUrls);
         }
 
         private void StopButton_Click(object sender, RoutedEventArgs e) => StopDownload();
@@ -310,8 +349,31 @@ namespace MidiaScraper
                 });
             }
 
-            PlaylistTitleText.Text = $"{metadata.Title} — {_playlistItems.Count} itens";
-            AppendLog($"📃 Playlist detectada: {_playlistItems.Count} itens. Selecione o que deseja baixar.");
+            DisplayQueueSelection($"{metadata.Title} — {_playlistItems.Count} itens", "Playlist detectada");
+        }
+
+        private void ShowManualUrlQueue(List<string> urls)
+        {
+            _playlistItems.Clear();
+            foreach (string url in urls)
+            {
+                _playlistItems.Add(new DownloadItemViewModel
+                {
+                    Id = url,
+                    Title = url.Length > 70 ? url[..70] + "…" : url,
+                    WatchUrl = url,
+                    IsSelected = true,
+                    Status = "Pendente"
+                });
+            }
+
+            DisplayQueueSelection($"Fila de downloads — {_playlistItems.Count} URLs", "Fila detectada");
+        }
+
+        private void DisplayQueueSelection(string headerText, string logPrefix)
+        {
+            PlaylistTitleText.Text = headerText;
+            AppendLog($"📃 {logPrefix}: {_playlistItems.Count} itens. Selecione o que deseja baixar.");
 
             ProgressCard.Visibility = Visibility.Collapsed;
             EmptyStateCard.Visibility = Visibility.Collapsed;

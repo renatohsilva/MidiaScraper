@@ -210,12 +210,18 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 > 1. A busca de metadados sempre incluía `--flat-playlist` sem `--no-playlist`, então uma URL de vídeo único com um parâmetro de "Mix"/rádio automático do YouTube (`&list=RD...`) fazia o yt-dlp expandir a prévia para a playlist inteira (no teste real, 705 itens, ~15s — bem no limite do timeout interno de 15s da busca). Corrigido passando a mesma flag `DownloadPlaylist`/`PlaylistCheck` para `IMediaMetadataProvider.FetchAsync`, que agora adiciona `--no-playlist` nas mesmas condições que `YtDlpArgumentBuilder` usa para o download real — a prévia de um vídeo único fica em ~2–3s em vez de ~15s.
 > 2. Alguns vídeos só populam o array `"thumbnails"` (várias resoluções) no JSON do yt-dlp, sem duplicar o campo `"thumbnail"` singular que o parser lia — resultando em prévia sem thumbnail. Corrigido com fallback para a última entrada de `"thumbnails"` (heurística: yt-dlp ordena da menor para a maior resolução) quando `"thumbnail"` está ausente.
 
-### Passo 3.3 — Fila de downloads / múltiplas URLs em lote 🟠
+### Passo 3.3 — Fila de downloads / múltiplas URLs em lote 🟠 — ✅ concluído em 2026-09-14
 
-- **Arquivos novos:** `Services/Downloads/DownloadQueue.cs` (processa uma `ObservableCollection<DownloadItemViewModel>` sequencialmente, chamando `IMediaDownloader` por item), `ViewModels/MainViewModel.cs` (se ainda não formalizado no Passo 3.2 — estado agregado: pendentes/ativos/concluídos)
+- **Arquivos novos:** ~~`Services/Downloads/DownloadQueue.cs`, `ViewModels/MainViewModel.cs`~~
 - **Arquivos alterados:** `MainWindow.xaml` (view da fila: itens pendente/ativo/concluído, progresso por item em vez de uma única barra global), `MainWindow.xaml.cs` (delega a `DownloadQueue`; handlers de botão ficam mais finos)
 - **Impactos possíveis:** é o passo que mais muda o **modelo de interação** do app (de single-shot para fila). ⚠️ **Decisão de UX a confirmar antes de implementar:** o botão "Parar" deve cancelar só o item atual, ou a fila inteira? Recomendação: cancelar apenas o item ativo por padrão, com uma ação separada e explícita para "limpar/cancelar fila inteira" — mas isso deve ser confirmado com o usuário no momento da implementação, não assumido agora.
 - **Depende de:** Passo 3.2 (reaproveita `DownloadItemViewModel`).
+
+> **Decisão de UX tomada:** múltiplas URLs são adicionadas colando texto com uma URL por linha na própria caixa (`UrlTextBox` ganhou `AcceptsReturn`), reaproveitando a mesma lista com checkboxes do Passo 3.2 — em vez de um botão "Adicionar à fila" separado. Enter sozinho continua disparando o download; Shift+Enter insere uma quebra de linha para digitar (não só colar) várias URLs manualmente.
+>
+> **Simplificação deliberada em relação ao plano original:** não foram criados `Services/Downloads/DownloadQueue.cs` nem `ViewModels/MainViewModel.cs` como classes separadas — o loop sequencial de processamento (`RunSelectedPlaylistItemsAsync`, já escrito no Passo 3.2 para o lote de itens de playlist) foi reaproveitado tal como está para o novo caminho de fila manual (`ShowManualUrlQueue`), já que ambos os casos convergem para a mesma coleção `_playlistItems`/`DownloadItemViewModel`. Extrair uma camada de serviço/ViewModel formal agora seria abstração sem necessidade concreta ainda — fica registrado aqui como candidato a extração futura se a lógica de fila crescer mais (ex.: na Fase 4, download paralelo).
+>
+> Cancelamento confirmado no teste real: "Parar" cancela o item ativo da fila; o loop segue para o próximo item automaticamente.
 
 ### Passo 3.4 — Histórico persistente de downloads 🟡
 
