@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Forms;
 using System.Windows.Media.Animation;
 using MidiaScraper.Models;
@@ -36,9 +37,6 @@ namespace MidiaScraper
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // Garante que a janela aparece na frente, depois desabilita Topmost
-            await Task.Delay(500);
-            Topmost = false;
             Activate();
 
             UpdateFolderDisplay();
@@ -162,6 +160,19 @@ namespace MidiaScraper
             LogTextBox.Clear();
         }
 
+        private void ErrorBannerCloseButton_Click(object sender, RoutedEventArgs e) => HideErrorBanner();
+
+        private void ShowErrorBanner(string message)
+        {
+            ErrorBannerText.Text = message;
+            ErrorBanner.Visibility = Visibility.Visible;
+        }
+
+        private void HideErrorBanner()
+        {
+            ErrorBanner.Visibility = Visibility.Collapsed;
+        }
+
         private void FormatCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             // Could update UI hints here
@@ -174,8 +185,12 @@ namespace MidiaScraper
             _isDownloading = true;
             _cts = new CancellationTokenSource();
             _maxProgressPercent = 0;
+            EmptyStateCard.Visibility = Visibility.Collapsed;
+            ProgressCard.Visibility = Visibility.Visible;
+            HideErrorBanner();
             SetDownloadingState(true);
             SetProgress(0, "Iniciando download...");
+            ProgressEta.Text = "";
 
             AppendLog("");
             AppendLog($"🔗 URL: {url}");
@@ -196,6 +211,7 @@ namespace MidiaScraper
                     _completedDownloads++;
                     UpdateDownloadCount();
                     SetProgress(100, "Download concluído com sucesso! ✅");
+                    ProgressEta.Text = "";
                     SetStatus("Concluído", true);
                     AppendLog("─────────────────────────────────────────────");
                     AppendLog("✅ Download concluído!");
@@ -203,8 +219,10 @@ namespace MidiaScraper
                 else
                 {
                     SetProgress(0, $"yt-dlp terminou com código {result.ExitCode}");
+                    ProgressEta.Text = "";
                     SetStatus("Erro", false);
                     AppendLog($"⚠️  yt-dlp encerrou com código de saída: {result.ExitCode}");
+                    ShowErrorBanner($"O download falhou (yt-dlp encerrou com código {result.ExitCode}). Veja o console para detalhes.");
                 }
             }
             catch (OperationCanceledException)
@@ -212,13 +230,16 @@ namespace MidiaScraper
                 AppendLog("");
                 AppendLog("⛔ Download cancelado pelo usuário.");
                 SetProgress(0, "Download cancelado");
+                ProgressEta.Text = "";
                 SetStatus("Cancelado", false);
             }
             catch (Exception ex)
             {
                 AppendLog($"❌ Erro inesperado: {ex.Message}");
                 SetProgress(0, "Erro no download");
+                ProgressEta.Text = "";
                 SetStatus("Erro", false);
+                ShowErrorBanner($"Erro inesperado: {ex.Message}");
             }
             finally
             {
@@ -264,6 +285,7 @@ namespace MidiaScraper
                     double displayPercent = Math.Max(info.Percent ?? _maxProgressPercent, _maxProgressPercent);
                     _maxProgressPercent = displayPercent;
                     SetProgress((int)displayPercent, $"{displayPercent:F1}%  –  {info.SizeText}  –  {info.SpeedText}");
+                    ProgressEta.Text = FormatEta(info.Eta);
                     break;
                 case DownloadLineKind.Destination:
                     AppendLog($"📄 {info.RawLine}");
@@ -279,6 +301,15 @@ namespace MidiaScraper
                     AppendLog(info.RawLine);
                     break;
             }
+        }
+
+        private static string FormatEta(string? eta)
+        {
+            if (string.IsNullOrWhiteSpace(eta) ||
+                eta.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                eta.Equals("NA", StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+            return $"ETA {eta}";
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────
@@ -320,6 +351,7 @@ namespace MidiaScraper
             StatusDot.Fill  = ok
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+            AutomationProperties.SetName(StatusDot, $"Status: {text}");
         }
 
         private void AppendLog(string line)

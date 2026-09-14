@@ -170,7 +170,15 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 - **Impactos possíveis:** nenhum além de layout — texto adicional na linha de status de progresso.
 - **Depende de:** Passo 1.5 (campo `Eta` só existe depois da migração para `--progress-template`).
 
-**Checkpoint de fim de Fase 2:** revisão visual completa da janela (luz e tema atual escuro), teste de leitor de tela básico (Narrator do Windows) nos controles principais.
+**Checkpoint de fim de Fase 2 — implementação concluída em 2026-09-13, aguardando validação visual/Narrator do usuário:**
+- 2.1 — `Topmost` e o delay de 500ms removidos; `Activate()` sozinho na inicialização.
+- 2.2 — `AutomationProperties.Name` em todos os botões com ícone (`PasteButton`, `DownloadButton`, `FolderButton`, `StopButton`, `OpenFolderButton`, `ClearLogButton`); `StatusDot` recebe um nome dinâmico (`Status: {texto}`) atualizado a cada chamada de `SetStatus`, já que é um indicador só de cor.
+- 2.3 — validado com a fórmula de contraste da WCAG 2.1: `#475569` sobre `#16161F` dava ~2.37:1 e `#64748B` ~3.78:1, ambos abaixo do mínimo de 4.5:1 para texto pequeno. Consolidados para `#94A3B8` (~7:1), tom já usado em outros lugares do app.
+- 2.4 — card de progresso some até o primeiro download; nesse meio-tempo, um estado vazio explícito ("Cole uma URL acima e clique em Baixar para começar") ocupa o espaço.
+- 2.5 — banner de erro dedicado (vermelho, com botão de fechar), acionado quando `IMediaDownloader` retorna código de saída ≠ 0 ou lança uma exceção inesperada; não aparece para cancelamento pelo usuário. Desaparece automaticamente ao iniciar um novo download, ou manualmente pelo X.
+- 2.6 — ETA exibido ao lado do texto de status do progresso (`ProgressEta`), populado a partir do campo `DownloadProgressInfo.Eta` (Passo 1.5); oculto quando o valor é vazio/"Unknown"/"NA".
+- `dotnet test`: 28/28 passando; build limpo.
+- **Pendente do usuário:** revisão visual da janela e teste com o Narrator do Windows nos controles principais (a IA não consegue interagir com a GUI diretamente).
 
 ---
 

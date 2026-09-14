@@ -6,7 +6,6 @@
         WindowStartupLocation="CenterScreen"
         WindowState="Normal"
         ShowInTaskbar="True"
-        Topmost="True"
         Background="#0F0F13"
         FontFamily="Segoe UI">
 
@@ -187,6 +186,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="16"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="16"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="16"/>
@@ -207,14 +207,15 @@
                 </Border>
                 <StackPanel>
                     <TextBlock Text="MídiaScraper" FontSize="24" FontWeight="Bold" Foreground="#F1F5F9"/>
-                    <TextBlock Text="Download de vídeos do YouTube, Twitter e muito mais" FontSize="12" Foreground="#64748B"/>
+                    <TextBlock Text="Download de vídeos do YouTube, Twitter e muito mais" FontSize="12" Foreground="#94A3B8"/>
                 </StackPanel>
 
                 <!-- Status Badge -->
                 <Border x:Name="StatusBadge" CornerRadius="20" Padding="12,4" Margin="20,0,0,0"
                         VerticalAlignment="Center" Background="#1A1A24" BorderBrush="#2D2D42" BorderThickness="1">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,6,0">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,6,0"
+                                 AutomationProperties.Name="Status: Pronto">
                             <Ellipse.Triggers>
                                 <EventTrigger RoutedEvent="Loaded">
                                     <BeginStoryboard>
@@ -244,7 +245,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="URL DO VÍDEO" FontSize="10" FontWeight="Bold"
-                               Foreground="#64748B"/>
+                               Foreground="#94A3B8"/>
 
                     <!-- URL Input Row -->
                     <Grid Grid.Row="2">
@@ -275,7 +276,8 @@
                                 Grid.Column="2"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Height="50" Width="100"
-                                Click="PasteButton_Click">
+                                Click="PasteButton_Click"
+                                AutomationProperties.Name="Colar URL da área de transferência">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📋" FontSize="14" Margin="0,0,6,0"/>
                                 <TextBlock Text="Colar" FontSize="13"/>
@@ -286,7 +288,8 @@
                                 Grid.Column="4"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Height="50" Width="140"
-                                Click="DownloadButton_Click">
+                                Click="DownloadButton_Click"
+                                AutomationProperties.Name="Iniciar ou parar o download">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock x:Name="DownloadIcon" Text="⬇" FontSize="16" Margin="0,0,8,0"/>
                                 <TextBlock x:Name="DownloadButtonText" Text="Baixar" FontSize="14" FontWeight="SemiBold"/>
@@ -307,7 +310,7 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock Text="Formato:" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Formato:" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <ComboBox x:Name="FormatCombo" Width="130" Height="36"
                                       Style="{StaticResource DarkComboStyle}"
                                       SelectionChanged="FormatCombo_SelectionChanged">
@@ -330,7 +333,8 @@
                         <Button x:Name="FolderButton" Grid.Column="6"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Height="36" Padding="14,8"
-                                Click="FolderButton_Click">
+                                Click="FolderButton_Click"
+                                AutomationProperties.Name="Escolher pasta de destino">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📁" FontSize="13" Margin="0,0,6,0"/>
                                 <TextBlock x:Name="FolderButtonText" Text="Pasta de saída" FontSize="12"/>
@@ -340,48 +344,88 @@
                 </Grid>
             </Border>
 
-            <!-- Progress Section -->
-            <Border Grid.Row="4" Style="{StaticResource CardStyle}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="10"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="8"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+            <!-- Progress Section / Empty State (mutuamente exclusivos) -->
+            <Grid Grid.Row="4">
+                <Border x:Name="EmptyStateCard" Style="{StaticResource CardStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="🔗" FontSize="20" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Cole uma URL acima e clique em Baixar para começar"
+                                   Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
 
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="PROGRESSO" FontSize="10" FontWeight="Bold"
-                                   Foreground="#64748B" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="ProgressPercent" Grid.Column="1"
-                                   Text="0%" FontSize="13" FontWeight="Bold" Foreground="#7C3AED"/>
-                    </Grid>
+                <Border x:Name="ProgressCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                    <!-- Progress Bar -->
-                    <Border Grid.Row="2" Height="8" Background="#1A1A24" CornerRadius="4">
-                        <Border x:Name="ProgressFill" HorizontalAlignment="Left" CornerRadius="4"
-                                Width="0" Height="8">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="#7C3AED" Offset="0"/>
-                                    <GradientStop Color="#06B6D4" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="PROGRESSO" FontSize="10" FontWeight="Bold"
+                                       Foreground="#94A3B8" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ProgressPercent" Grid.Column="1"
+                                       Text="0%" FontSize="13" FontWeight="Bold" Foreground="#7C3AED"/>
+                        </Grid>
+
+                        <!-- Progress Bar -->
+                        <Border Grid.Row="2" Height="8" Background="#1A1A24" CornerRadius="4">
+                            <Border x:Name="ProgressFill" HorizontalAlignment="Left" CornerRadius="4"
+                                    Width="0" Height="8">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#7C3AED" Offset="0"/>
+                                        <GradientStop Color="#06B6D4" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
                         </Border>
-                    </Border>
 
-                    <TextBlock x:Name="ProgressStatus" Grid.Row="4"
-                               Text="Aguardando URL..." Foreground="#475569" FontSize="12"/>
+                        <Grid Grid.Row="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ProgressStatus" Grid.Column="0"
+                                       Text="Aguardando URL..." Foreground="#94A3B8" FontSize="12"/>
+                            <TextBlock x:Name="ProgressEta" Grid.Column="1"
+                                       Text="" Foreground="#94A3B8" FontSize="12" Margin="12,0,0,0"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Error Banner -->
+            <Border x:Name="ErrorBanner" Grid.Row="5" Visibility="Collapsed" Margin="0,16,0,0"
+                    Background="#2A1414" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="12" Padding="16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="⚠️" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ErrorBannerText" Grid.Column="1" Text=""
+                               Foreground="#FCA5A5" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    <Button x:Name="ErrorBannerCloseButton" Grid.Column="2"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="#FCA5A5" FontSize="13" Cursor="Hand" Padding="8,4"
+                            Click="ErrorBannerCloseButton_Click"
+                            AutomationProperties.Name="Fechar aviso de erro">
+                        <TextBlock Text="✕"/>
+                    </Button>
                 </Grid>
             </Border>
 
             <!-- Log Output -->
-            <Border Grid.Row="6" Background="#0A0A10" BorderBrush="#1E1E2E" BorderThickness="1" CornerRadius="12">
+            <Border Grid.Row="7" Background="#0A0A10" BorderBrush="#1E1E2E" BorderThickness="1" CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -398,13 +442,14 @@
                                 <Ellipse Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0"/>
                                 <Ellipse Width="10" Height="10" Fill="#F59E0B" Margin="0,0,6,0"/>
                                 <Ellipse Width="10" Height="10" Fill="#10B981" Margin="0,0,14,0"/>
-                                <TextBlock Text="Console" Foreground="#475569" FontSize="12"
+                                <TextBlock Text="Console" Foreground="#94A3B8" FontSize="12"
                                            FontFamily="Consolas" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Button Grid.Column="1" x:Name="ClearLogButton"
                                     Background="Transparent" BorderThickness="0"
-                                    Foreground="#475569" FontSize="11" Cursor="Hand"
-                                    Click="ClearLogButton_Click" Padding="8,4">
+                                    Foreground="#94A3B8" FontSize="11" Cursor="Hand"
+                                    Click="ClearLogButton_Click" Padding="8,4"
+                                    AutomationProperties.Name="Limpar console de log">
                                 <TextBlock Text="Limpar"/>
                             </Button>
                         </Grid>
@@ -415,7 +460,7 @@
             </Border>
 
             <!-- Footer / Download List -->
-            <Border Grid.Row="8" Style="{StaticResource CardStyle}" Padding="16,14">
+            <Border Grid.Row="9" Style="{StaticResource CardStyle}" Padding="16,14">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -425,10 +470,10 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="DownloadCountText" Text="0 downloads concluídos"
-                                   Foreground="#475569" FontSize="12"/>
+                                   Foreground="#94A3B8" FontSize="12"/>
                         <TextBlock Text=" · " Foreground="#2D2D42" FontSize="12"/>
                         <TextBlock x:Name="OutputFolderText" Text="Pasta: padrão do sistema"
-                                   Foreground="#475569" FontSize="12"/>
+                                   Foreground="#94A3B8" FontSize="12"/>
                     </StackPanel>
 
                     <Button x:Name="StopButton"
@@ -436,7 +481,8 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Height="36" Padding="16,8"
                             IsEnabled="False"
-                            Click="StopButton_Click">
+                            Click="StopButton_Click"
+                            AutomationProperties.Name="Parar download em andamento">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⏹" Margin="0,0,6,0"/>
                             <TextBlock Text="Parar"/>
@@ -447,7 +493,8 @@
                             Grid.Column="3"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Height="36" Padding="16,8"
-                            Click="OpenFolderButton_Click">
+                            Click="OpenFolderButton_Click"
+                            AutomationProperties.Name="Abrir pasta de downloads no Explorer">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📂" Margin="0,0,6,0"/>
                             <TextBlock Text="Abrir pasta"/>
