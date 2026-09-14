@@ -363,11 +363,15 @@
 
                         <CheckBox x:Name="SubtitleCheck" Grid.Column="2"
                                   Style="{StaticResource DarkCheckStyle}"
-                                  Content="Baixar legendas"/>
+                                  Content="Baixar legendas"
+                                  Checked="SettingsCheckBox_Changed"
+                                  Unchecked="SettingsCheckBox_Changed"/>
 
                         <CheckBox x:Name="PlaylistCheck" Grid.Column="4"
                                   Style="{StaticResource DarkCheckStyle}"
-                                  Content="Baixar playlist inteira"/>
+                                  Content="Baixar playlist inteira"
+                                  Checked="SettingsCheckBox_Changed"
+                                  Unchecked="SettingsCheckBox_Changed"/>
 
                         <Button x:Name="FolderButton" Grid.Column="6"
                                 Style="{StaticResource SecondaryButtonStyle}"

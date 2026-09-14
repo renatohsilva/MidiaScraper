@@ -241,12 +241,14 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 > Implementado como um botão "🕘" ao lado de "Colar" que abre um `Popup` com as últimas 8 URLs únicas do histórico (mais recente primeiro); clicar em uma preenche a caixa de URL. Testado manualmente.
 
-### Passo 3.6 — Configurações persistidas 🟡
+### Passo 3.6 — Configurações persistidas 🟡 — ✅ concluído em 2026-09-14
 
 - **Arquivos novos:** `Models/AppSettings.cs` (`OutputFolder`, `DefaultFormat`, `DefaultSubtitles`, `DefaultPlaylist`, `MaxConcurrentDownloads` — este último usado só na Fase 4), `Services/Settings/SettingsStore.cs` (JSON em `%AppData%\MidiaScraper\settings.json`)
 - **Arquivos alterados:** `MainWindow.xaml.cs` (carregar configurações no `MainWindow_Loaded` em vez dos valores hardcoded atuais; salvar ao trocar pasta/formato ou ao fechar)
 - **Impactos possíveis:** muda o comportamento de primeira execução vs. execuções seguintes (hoje `_outputFolder` sempre reinicia em `Downloads`; passa a lembrar a última pasta usada) — é a mudança de comportamento pretendida, mas vale documentar no changelog/PR.
 - **Depende de:** nada estrutural — pode ser feito em paralelo a 3.1–3.5 se for conveniente adiantar.
+
+> Salva a cada mudança de pasta, formato ou checkbox (`SaveSettingsAsync`), em vez de só ao fechar — mais simples e robusto contra um fechamento anormal do processo. Uma flag `_settingsLoaded` evita que a seleção inicial dos controles (disparada durante a própria carga das configurações) sobrescreva o arquivo com os valores padrão antes da leitura terminar. Testado: pasta, formato e checkboxes persistem entre reinícios.
 
 ### Passo 3.7 — Retry automático com backoff 🟡
 

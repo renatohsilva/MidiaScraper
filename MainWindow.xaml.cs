@@ -23,6 +23,7 @@ namespace MidiaScraper
         private readonly IMediaDownloader _mediaDownloader = new YtDlpMediaDownloader();
         private readonly IMediaMetadataProvider _metadataProvider = new YtDlpMetadataProvider();
         private readonly Services.Downloads.DownloadHistoryStore _historyStore = new();
+        private readonly Services.Settings.SettingsStore _settingsStore = new();
 
         // ── State ────────────────────────────────────────────────────────────────
         private string _outputFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
@@ -34,6 +35,8 @@ namespace MidiaScraper
         private double _maxProgressPercent;
         private readonly ObservableCollection<DownloadItemViewModel> _playlistItems = new();
         private readonly ObservableCollection<DownloadHistoryEntry> _history = new();
+        private AppSettings _settings = new();
+        private bool _settingsLoaded;
 
         // ── Constructor ──────────────────────────────────────────────────────────
         public MainWindow()
@@ -47,6 +50,11 @@ namespace MidiaScraper
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             Activate();
+
+            _settings = await _settingsStore.LoadAsync(AppendLog);
+            _outputFolder = _settings.OutputFolder;
+            ApplySettingsToControls();
+            _settingsLoaded = true;
 
             UpdateFolderDisplay();
             AppendLog("🚀 MídiaScraper iniciado.");
@@ -208,7 +216,7 @@ namespace MidiaScraper
 
         private void StopButton_Click(object sender, RoutedEventArgs e) => StopDownload();
 
-        private void FolderButton_Click(object sender, RoutedEventArgs e)
+        private async void FolderButton_Click(object sender, RoutedEventArgs e)
         {
             using var dialog = new FolderBrowserDialog
             {
@@ -221,6 +229,7 @@ namespace MidiaScraper
                 _outputFolder = dialog.SelectedPath;
                 UpdateFolderDisplay();
                 AppendLog($"📁 Pasta alterada para: {_outputFolder}");
+                await SaveSettingsAsync();
             }
         }
 
@@ -262,9 +271,57 @@ namespace MidiaScraper
             ErrorBanner.Visibility = Visibility.Collapsed;
         }
 
-        private void FormatCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private async void FormatCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            // Could update UI hints here
+            await SaveSettingsAsync();
+        }
+
+        private async void SettingsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            await SaveSettingsAsync();
+        }
+
+        private void ApplySettingsToControls()
+        {
+            string tag = _settings.DefaultFormat switch
+            {
+                DownloadFormat.AudioOnly => "audio",
+                DownloadFormat.Video1080 => "1080",
+                DownloadFormat.Video720 => "720",
+                DownloadFormat.Video480 => "480",
+                _ => "best"
+            };
+
+            foreach (var obj in FormatCombo.Items)
+            {
+                if (obj is System.Windows.Controls.ComboBoxItem item && (string?)item.Tag == tag)
+                {
+                    FormatCombo.SelectedItem = item;
+                    break;
+                }
+            }
+
+            SubtitleCheck.IsChecked = _settings.DefaultSubtitles;
+            PlaylistCheck.IsChecked = _settings.DefaultPlaylist;
+        }
+
+        private async Task SaveSettingsAsync()
+        {
+            if (!_settingsLoaded) return;
+
+            _settings.OutputFolder = _outputFolder;
+            _settings.DefaultFormat = ParseFormatTag((FormatCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string);
+            _settings.DefaultSubtitles = SubtitleCheck.IsChecked == true;
+            _settings.DefaultPlaylist = PlaylistCheck.IsChecked == true;
+
+            try
+            {
+                await _settingsStore.SaveAsync(_settings);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"⚠️  Não foi possível salvar as configurações: {ex.Message}");
+            }
         }
 
         // ── Download Logic ───────────────────────────────────────────────────────
