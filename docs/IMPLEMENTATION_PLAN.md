@@ -186,19 +186,29 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 > Esta fase é onde a UI deixa de ser "1 download por vez" para virar "lista/fila gerenciada". É o ponto natural para decidir a questão de MVVM (ver decisão pendente).
 
-### Passo 3.1 — Preview de metadados antes do download 🟠
+### Passo 3.1 — Preview de metadados antes do download 🟠 — ✅ concluído em 2026-09-13
+
+> Implementado: `Models/MediaMetadata.cs`, `Services/YtDlp/IMediaMetadataProvider.cs` + `YtDlpMetadataProvider.cs` (roda `yt-dlp --dump-json --flat-playlist --simulate`, timeout de 15s próprio via `CancellationTokenSource` linkado — não bloqueia indefinidamente nem deixa processo órfão). UI: painel de prévia (thumbnail + título + duração) dentro do próprio `ProgressCard`, aparece só quando os metadados são obtidos com sucesso; em caso de falha, loga um aviso e segue direto para o download (fallback, sem travar o fluxo).
+>
+> **Bug real encontrado e corrigido durante a validação:** a trava "percentual nunca regride" da Fase 1 (criada para esconder a reestimativa de tamanho em downloads fragmentados) impedia a barra de voltar a 0% quando o yt-dlp termina de baixar o vídeo e começa o áudio como arquivo separado (comportamento normal ao baixar bestvideo+bestaudio) — a tela ficava presa em 100% enquanto o áudio ainda baixava. Corrigido resetando `_maxProgressPercent` sempre que uma linha `[download] Destination:`/`[Merger]`/`[ExtractAudio]` sinaliza o início de um novo arquivo (`RenderProgressInfo`, caso `DownloadLineKind.Destination`).
 
 - **Arquivos novos:** `Services/YtDlp/IMediaMetadataProvider.cs`, `Services/YtDlp/YtDlpMetadataProvider.cs` (roda `yt-dlp --dump-json --flat-playlist --simulate`, parseia com `System.Text.Json`), `Models/MediaMetadata.cs` (`Title`, `ThumbnailUrl`, `DurationSeconds`, `IsPlaylist`, `Entries: IReadOnlyList<MediaEntry>`)
 - **Arquivos alterados:** `MainWindow.xaml` (novo cartão de preview: thumbnail via `Image` com `Source` de URI http(s) — suportado nativamente pelo WPF, sem dependência nova —, título, duração), `MainWindow.xaml.cs` (chamar o provider antes de habilitar o botão "Baixar" definitivo; estado de carregamento enquanto aguarda)
 - **Impactos possíveis:** adiciona uma chamada de rede/processo extra antes de cada download (latência adicional de ~1–3s); precisa de um indicador de carregamento para não parecer travado; precisa tratar falha de obtenção de metadados sem bloquear o fluxo por completo (fallback: permitir baixar mesmo sem preview, com aviso).
 - **Depende de:** Fase 1 completa (usa a mesma base de `Services/YtDlp`).
 
-### Passo 3.2 — Lista de mídias com seleção individual (playlists) 🟠
+### Passo 3.2 — Lista de mídias com seleção individual (playlists) 🟠 — ✅ concluído em 2026-09-13
 
 - **Arquivos novos:** `ViewModels/DownloadItemViewModel.cs` (`Title`, `ThumbnailUrl`, `IsSelected`, `Status`, `ProgressPercent`) — implementação de notificação de mudança conforme a decisão pendente de MVVM
 - **Arquivos alterados:** `MainWindow.xaml` (substituir/estender o cartão de preview por um `ItemsControl`/`ListBox` com checkbox por item, exibido apenas quando `MediaMetadata.IsPlaylist` for verdadeiro), `MainWindow.xaml.cs` (popular a coleção a partir de `MediaMetadata.Entries`; "selecionar todos/nenhum"; ao clicar em "Baixar", iterar apenas os itens marcados)
 - **Impactos possíveis:** maior mudança visual da Fase 3 na área principal da janela. **Importante preservar o caminho rápido do caso comum**: quando a URL não é playlist (a maioria dos usos hoje), a lista não deve aparecer — deve continuar sendo "1 clique para baixar", sem etapas extras impostas ao caso simples.
 - **Depende de:** Passo 3.1.
+
+> Implementado com `CommunityToolkit.Mvvm` (8.4.2) — primeira dependência de produção do projeto, conforme decisão registrada acima. `StartDownloadAsync` foi separado em `DownloadOneAsync` (uma única URL, sem gerenciar o ciclo de vida de `_isDownloading`/`_cts`) para ser reaproveitado tanto no caminho de vídeo único quanto no loop sequencial de itens selecionados da playlist (`RunSelectedPlaylistItemsAsync`). Semântica de cancelamento confirmada na prática: "Parar" cancela apenas o item ativo do lote, e o loop segue para o próximo item.
+>
+> **Dois bugs reais encontrados e corrigidos durante a validação:**
+> 1. A busca de metadados sempre incluía `--flat-playlist` sem `--no-playlist`, então uma URL de vídeo único com um parâmetro de "Mix"/rádio automático do YouTube (`&list=RD...`) fazia o yt-dlp expandir a prévia para a playlist inteira (no teste real, 705 itens, ~15s — bem no limite do timeout interno de 15s da busca). Corrigido passando a mesma flag `DownloadPlaylist`/`PlaylistCheck` para `IMediaMetadataProvider.FetchAsync`, que agora adiciona `--no-playlist` nas mesmas condições que `YtDlpArgumentBuilder` usa para o download real — a prévia de um vídeo único fica em ~2–3s em vez de ~15s.
+> 2. Alguns vídeos só populam o array `"thumbnails"` (várias resoluções) no JSON do yt-dlp, sem duplicar o campo `"thumbnail"` singular que o parser lia — resultando em prévia sem thumbnail. Corrigido com fallback para a última entrada de `"thumbnails"` (heurística: yt-dlp ordena da menor para a maior resolução) quando `"thumbnail"` está ausente.
 
 ### Passo 3.3 — Fila de downloads / múltiplas URLs em lote 🟠
 

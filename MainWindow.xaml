@@ -358,13 +358,33 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="10"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="8"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0">
+                        <!-- Metadata Preview (só aparece quando conseguimos obter dados do vídeo) -->
+                        <Grid x:Name="MetadataPreviewPanel" Grid.Row="0" Visibility="Collapsed" Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="96" Height="54" CornerRadius="6"
+                                    Background="#1A1A24" ClipToBounds="True">
+                                <Image x:Name="MetadataThumbnail" Stretch="UniformToFill"/>
+                            </Border>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                <TextBlock x:Name="MetadataTitle" Text="" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="#F1F5F9" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="MetadataDuration" Text="" FontSize="12"
+                                           Foreground="#94A3B8" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -376,7 +396,7 @@
                         </Grid>
 
                         <!-- Progress Bar -->
-                        <Border Grid.Row="2" Height="8" Background="#1A1A24" CornerRadius="4">
+                        <Border Grid.Row="3" Height="8" Background="#1A1A24" CornerRadius="4">
                             <Border x:Name="ProgressFill" HorizontalAlignment="Left" CornerRadius="4"
                                     Width="0" Height="8">
                                 <Border.Background>
@@ -388,7 +408,7 @@
                             </Border>
                         </Border>
 
-                        <Grid Grid.Row="4">
+                        <Grid Grid.Row="5">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -398,6 +418,71 @@
                             <TextBlock x:Name="ProgressEta" Grid.Column="1"
                                        Text="" Foreground="#94A3B8" FontSize="12" Margin="12,0,0,0"/>
                         </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Playlist Selection -->
+                <Border x:Name="PlaylistSelectionCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="200"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="PlaylistTitleText" Grid.Row="0" Text="Playlist encontrada"
+                                   FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"/>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal">
+                            <Button x:Name="SelectAllButton" Content="Selecionar todos"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="32" Padding="12,6" FontSize="12" Margin="0,0,10,0"
+                                    Click="SelectAllButton_Click"/>
+                            <Button x:Name="SelectNoneButton" Content="Selecionar nenhum"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="32" Padding="12,6" FontSize="12"
+                                    Click="SelectNoneButton_Click"/>
+                        </StackPanel>
+
+                        <Border Grid.Row="4" Background="#1A1A24" CornerRadius="8"
+                                BorderBrush="#2D2D42" BorderThickness="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="PlaylistItemsControl" Margin="4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="8,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="8"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox Grid.Column="0" Style="{StaticResource DarkCheckStyle}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Title}"
+                                                           Foreground="#E2E8F0" FontSize="12"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Status}"
+                                                           Foreground="#94A3B8" FontSize="11"
+                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Button x:Name="DownloadSelectedButton" Grid.Row="6"
+                                Style="{StaticResource PrimaryButtonStyle}" Height="44" Padding="20,10"
+                                HorizontalAlignment="Right" Click="DownloadSelectedButton_Click">
+                            <TextBlock Text="Baixar selecionados"/>
+                        </Button>
                     </Grid>
                 </Border>
             </Grid>

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -10,6 +12,7 @@ using System.Windows.Forms;
 using System.Windows.Media.Animation;
 using MidiaScraper.Models;
 using MidiaScraper.Services.YtDlp;
+using MidiaScraper.ViewModels;
 
 namespace MidiaScraper
 {
@@ -18,6 +21,7 @@ namespace MidiaScraper
         // ── Services ─────────────────────────────────────────────────────────────
         private readonly IYtDlpLocator _ytdlpLocator = new YtDlpLocator();
         private readonly IMediaDownloader _mediaDownloader = new YtDlpMediaDownloader();
+        private readonly IMediaMetadataProvider _metadataProvider = new YtDlpMetadataProvider();
 
         // ── State ────────────────────────────────────────────────────────────────
         private string _outputFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
@@ -27,11 +31,13 @@ namespace MidiaScraper
         private CancellationTokenSource? _cts;
         private string _ytdlpPath = string.Empty;
         private double _maxProgressPercent;
+        private readonly ObservableCollection<DownloadItemViewModel> _playlistItems = new();
 
         // ── Constructor ──────────────────────────────────────────────────────────
         public MainWindow()
         {
             InitializeComponent();
+            PlaylistItemsControl.ItemsSource = _playlistItems;
             Loaded += MainWindow_Loaded;
         }
 
@@ -186,16 +192,56 @@ namespace MidiaScraper
             _cts = new CancellationTokenSource();
             _maxProgressPercent = 0;
             EmptyStateCard.Visibility = Visibility.Collapsed;
+            PlaylistSelectionCard.Visibility = Visibility.Collapsed;
             ProgressCard.Visibility = Visibility.Visible;
             HideErrorBanner();
+            HideMetadataPreview();
             SetDownloadingState(true);
-            SetProgress(0, "Iniciando download...");
+            SetProgress(0, "Buscando informações do vídeo...");
             ProgressEta.Text = "";
 
             AppendLog("");
             AppendLog($"🔗 URL: {url}");
             AppendLog($"📁 Destino: {_outputFolder}");
 
+            try
+            {
+                bool wantsPlaylist = PlaylistCheck.IsChecked == true;
+                var metadata = await TryFetchMetadataAsync(url, wantsPlaylist, _cts.Token);
+
+                if (metadata != null && metadata.IsPlaylist)
+                {
+                    ShowPlaylistSelection(metadata);
+                    return;
+                }
+
+                if (metadata != null)
+                    ShowMetadataPreview(metadata);
+
+                await DownloadOneAsync(url, _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                AppendLog("");
+                AppendLog("⛔ Cancelado pelo usuário.");
+                SetProgress(0, "Cancelado");
+                ProgressEta.Text = "";
+                SetStatus("Cancelado", false);
+            }
+            finally
+            {
+                ResetDownloadState();
+            }
+        }
+
+        /// <summary>
+        /// Executa um único download (opções já resolvidas a partir dos controles + a URL dada) e
+        /// atualiza o card de progresso compartilhado. Não gerencia o ciclo de vida de
+        /// _isDownloading/_cts — quem chama decide isso (permite reuso tanto para o caminho de uma
+        /// única URL quanto para cada item de um lote de playlist).
+        /// </summary>
+        private async Task<bool> DownloadOneAsync(string url, CancellationToken ct)
+        {
             var options = BuildDownloadOptions(url);
             var args = YtDlpArgumentBuilder.Build(options);
             AppendLog($"⚙️  Argumentos: {string.Join(" ", args)}");
@@ -205,7 +251,8 @@ namespace MidiaScraper
 
             try
             {
-                var result = await _mediaDownloader.DownloadAsync(_ytdlpPath, args, progress, _cts.Token);
+                SetProgress(0, "Iniciando download...");
+                var result = await _mediaDownloader.DownloadAsync(_ytdlpPath, args, progress, ct);
                 if (result.Success)
                 {
                     _completedDownloads++;
@@ -215,39 +262,135 @@ namespace MidiaScraper
                     SetStatus("Concluído", true);
                     AppendLog("─────────────────────────────────────────────");
                     AppendLog("✅ Download concluído!");
+                    return true;
                 }
-                else
-                {
-                    SetProgress(0, $"yt-dlp terminou com código {result.ExitCode}");
-                    ProgressEta.Text = "";
-                    SetStatus("Erro", false);
-                    AppendLog($"⚠️  yt-dlp encerrou com código de saída: {result.ExitCode}");
-                    ShowErrorBanner($"O download falhou (yt-dlp encerrou com código {result.ExitCode}). Veja o console para detalhes.");
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                AppendLog("");
-                AppendLog("⛔ Download cancelado pelo usuário.");
-                SetProgress(0, "Download cancelado");
+
+                SetProgress(0, $"yt-dlp terminou com código {result.ExitCode}");
                 ProgressEta.Text = "";
-                SetStatus("Cancelado", false);
+                SetStatus("Erro", false);
+                AppendLog($"⚠️  yt-dlp encerrou com código de saída: {result.ExitCode}");
+                ShowErrorBanner($"O download falhou (yt-dlp encerrou com código {result.ExitCode}). Veja o console para detalhes.");
+                return false;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 AppendLog($"❌ Erro inesperado: {ex.Message}");
                 SetProgress(0, "Erro no download");
                 ProgressEta.Text = "";
                 SetStatus("Erro", false);
                 ShowErrorBanner($"Erro inesperado: {ex.Message}");
+                return false;
             }
-            finally
+        }
+
+        private void ResetDownloadState()
+        {
+            _isDownloading = false;
+            SetDownloadingState(false);
+            _cts?.Dispose();
+            _cts = null;
+        }
+
+        // ── Playlist Selection ───────────────────────────────────────────────────
+
+        private void ShowPlaylistSelection(MediaMetadata metadata)
+        {
+            _playlistItems.Clear();
+            foreach (var entry in metadata.Entries)
             {
-                _isDownloading = false;
-                SetDownloadingState(false);
-                _cts?.Dispose();
-                _cts = null;
+                _playlistItems.Add(new DownloadItemViewModel
+                {
+                    Id = entry.Id,
+                    Title = entry.Title,
+                    ThumbnailUrl = entry.ThumbnailUrl,
+                    DurationSeconds = entry.DurationSeconds,
+                    WatchUrl = entry.WatchUrl,
+                    IsSelected = true,
+                    Status = "Pendente"
+                });
             }
+
+            PlaylistTitleText.Text = $"{metadata.Title} — {_playlistItems.Count} itens";
+            AppendLog($"📃 Playlist detectada: {_playlistItems.Count} itens. Selecione o que deseja baixar.");
+
+            ProgressCard.Visibility = Visibility.Collapsed;
+            EmptyStateCard.Visibility = Visibility.Collapsed;
+            PlaylistSelectionCard.Visibility = Visibility.Visible;
+        }
+
+        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var item in _playlistItems) item.IsSelected = true;
+        }
+
+        private void SelectNoneButton_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var item in _playlistItems) item.IsSelected = false;
+        }
+
+        private async void DownloadSelectedButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isDownloading) return;
+            await RunSelectedPlaylistItemsAsync();
+        }
+
+        private async Task RunSelectedPlaylistItemsAsync()
+        {
+            var selected = _playlistItems.Where(i => i.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                AppendLog("⚠️  Nenhum item selecionado.");
+                return;
+            }
+
+            PlaylistSelectionCard.Visibility = Visibility.Collapsed;
+            ProgressCard.Visibility = Visibility.Visible;
+            HideErrorBanner();
+
+            AppendLog("");
+            AppendLog($"▶ Iniciando lote de {selected.Count} item(ns) da playlist...");
+
+            foreach (var item in selected)
+            {
+                _isDownloading = true;
+                _cts = new CancellationTokenSource();
+                _maxProgressPercent = 0;
+                SetDownloadingState(true);
+                HideMetadataPreview();
+                SetProgress(0, "Iniciando download...");
+                ProgressEta.Text = "";
+
+                AppendLog("");
+                AppendLog($"▶ {item.Title}");
+
+                if (string.IsNullOrWhiteSpace(item.WatchUrl))
+                {
+                    item.Status = "Erro (sem URL)";
+                    AppendLog("❌ Não foi possível determinar a URL deste item.");
+                    ResetDownloadState();
+                    continue;
+                }
+
+                item.Status = "Baixando...";
+                try
+                {
+                    bool ok = await DownloadOneAsync(item.WatchUrl, _cts.Token);
+                    item.Status = ok ? "Concluído" : "Falhou";
+                }
+                catch (OperationCanceledException)
+                {
+                    item.Status = "Cancelado";
+                    AppendLog("⛔ Item cancelado pelo usuário.");
+                    SetStatus("Cancelado", false);
+                }
+                finally
+                {
+                    ResetDownloadState();
+                }
+            }
+
+            AppendLog("");
+            AppendLog("✅ Lote de playlist finalizado.");
         }
 
         private DownloadOptions BuildDownloadOptions(string url)
@@ -274,6 +417,69 @@ namespace MidiaScraper
             _ => DownloadFormat.Best
         };
 
+        private async Task<MediaMetadata?> TryFetchMetadataAsync(string url, bool includePlaylist, CancellationToken ct)
+        {
+            try
+            {
+                var metadata = await _metadataProvider.FetchAsync(_ytdlpPath, url, includePlaylist, ct);
+                if (metadata == null)
+                    AppendLog("ℹ️  Não foi possível obter uma prévia (metadados); baixando diretamente.");
+                return metadata;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                AppendLog($"ℹ️  Não foi possível obter uma prévia (metadados): {ex.Message}");
+                return null;
+            }
+        }
+
+        private void ShowMetadataPreview(MediaMetadata metadata)
+        {
+            MetadataTitle.Text = metadata.Title;
+            MetadataDuration.Text = FormatDuration(metadata.DurationSeconds);
+
+            if (!string.IsNullOrWhiteSpace(metadata.ThumbnailUrl) &&
+                Uri.TryCreate(metadata.ThumbnailUrl, UriKind.Absolute, out Uri? thumbnailUri))
+            {
+                try
+                {
+                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = thumbnailUri;
+                    bitmap.EndInit();
+                    MetadataThumbnail.Source = bitmap;
+                }
+                catch (Exception)
+                {
+                    MetadataThumbnail.Source = null;
+                }
+            }
+            else
+            {
+                MetadataThumbnail.Source = null;
+            }
+
+            MetadataPreviewPanel.Visibility = Visibility.Visible;
+        }
+
+        private void HideMetadataPreview()
+        {
+            MetadataPreviewPanel.Visibility = Visibility.Collapsed;
+            MetadataThumbnail.Source = null;
+        }
+
+        private static string FormatDuration(double? durationSeconds)
+        {
+            if (durationSeconds is not double seconds || seconds <= 0)
+                return "";
+
+            var span = TimeSpan.FromSeconds(seconds);
+            return span.Hours > 0
+                ? span.ToString(@"h\:mm\:ss")
+                : span.ToString(@"m\:ss");
+        }
+
         private void RenderProgressInfo(DownloadProgressInfo info)
         {
             switch (info.Kind)
@@ -288,6 +494,10 @@ namespace MidiaScraper
                     ProgressEta.Text = FormatEta(info.Eta);
                     break;
                 case DownloadLineKind.Destination:
+                    // Sinaliza o início de um novo arquivo (ex.: yt-dlp baixa vídeo e áudio como
+                    // arquivos separados antes de mesclar) — o percentual precisa poder recomeçar
+                    // do zero aqui, diferente da oscilação fina dentro do mesmo arquivo.
+                    _maxProgressPercent = 0;
                     AppendLog($"📄 {info.RawLine}");
                     SetProgress(0, info.RawLine.Length > 90 ? info.RawLine[..90] + "…" : info.RawLine);
                     break;
@@ -327,6 +537,9 @@ namespace MidiaScraper
             StopButton.IsEnabled    = downloading;
             UrlTextBox.IsEnabled    = !downloading;
             FormatCombo.IsEnabled   = !downloading;
+            DownloadSelectedButton.IsEnabled = !downloading;
+            SelectAllButton.IsEnabled = !downloading;
+            SelectNoneButton.IsEnabled = !downloading;
         }
 
         private void SetProgress(int percent, string statusText)
