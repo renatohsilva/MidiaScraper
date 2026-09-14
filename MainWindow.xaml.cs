@@ -22,6 +22,7 @@ namespace MidiaScraper
         private readonly IYtDlpLocator _ytdlpLocator = new YtDlpLocator();
         private readonly IMediaDownloader _mediaDownloader = new YtDlpMediaDownloader();
         private readonly IMediaMetadataProvider _metadataProvider = new YtDlpMetadataProvider();
+        private readonly Services.Downloads.DownloadHistoryStore _historyStore = new();
 
         // ── State ────────────────────────────────────────────────────────────────
         private string _outputFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
@@ -32,12 +33,14 @@ namespace MidiaScraper
         private string _ytdlpPath = string.Empty;
         private double _maxProgressPercent;
         private readonly ObservableCollection<DownloadItemViewModel> _playlistItems = new();
+        private readonly ObservableCollection<DownloadHistoryEntry> _history = new();
 
         // ── Constructor ──────────────────────────────────────────────────────────
         public MainWindow()
         {
             InitializeComponent();
             PlaylistItemsControl.ItemsSource = _playlistItems;
+            HistoryItemsControl.ItemsSource = _history;
             Loaded += MainWindow_Loaded;
         }
 
@@ -49,6 +52,9 @@ namespace MidiaScraper
             AppendLog("🚀 MídiaScraper iniciado.");
             AppendLog($"📁 Pasta de saída: {_outputFolder}");
             AppendLog("");
+
+            foreach (var entry in await _historyStore.LoadAsync(AppendLog))
+                _history.Add(entry);
 
             var result = await _ytdlpLocator.EnsureAsync(AppendLog);
             switch (result.Outcome)
@@ -98,6 +104,30 @@ namespace MidiaScraper
                 UrlTextBox.Focus();
                 UrlTextBox.SelectionStart = UrlTextBox.Text.Length;
             }
+        }
+
+        private void RecentUrlsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var recentUrls = _history.Select(h => h.Url).Distinct().Take(8).ToList();
+            if (recentUrls.Count == 0)
+            {
+                AppendLog("ℹ️  Nenhuma URL recente ainda.");
+                return;
+            }
+
+            RecentUrlsList.ItemsSource = recentUrls;
+            RecentUrlsPopup.IsOpen = true;
+        }
+
+        private void RecentUrlItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button { Content: string url })
+            {
+                UrlTextBox.Text = url;
+                UrlTextBox.Focus();
+                UrlTextBox.SelectionStart = url.Length;
+            }
+            RecentUrlsPopup.IsOpen = false;
         }
 
         private void UrlTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -205,6 +235,20 @@ namespace MidiaScraper
             LogTextBox.Clear();
         }
 
+        private void HistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            EmptyStateCard.Visibility = Visibility.Collapsed;
+            ProgressCard.Visibility = Visibility.Collapsed;
+            PlaylistSelectionCard.Visibility = Visibility.Collapsed;
+            HistoryCard.Visibility = Visibility.Visible;
+        }
+
+        private void CloseHistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            HistoryCard.Visibility = Visibility.Collapsed;
+            EmptyStateCard.Visibility = Visibility.Visible;
+        }
+
         private void ErrorBannerCloseButton_Click(object sender, RoutedEventArgs e) => HideErrorBanner();
 
         private void ShowErrorBanner(string message)
@@ -232,6 +276,7 @@ namespace MidiaScraper
             _maxProgressPercent = 0;
             EmptyStateCard.Visibility = Visibility.Collapsed;
             PlaylistSelectionCard.Visibility = Visibility.Collapsed;
+            HistoryCard.Visibility = Visibility.Collapsed;
             ProgressCard.Visibility = Visibility.Visible;
             HideErrorBanner();
             HideMetadataPreview();
@@ -257,7 +302,7 @@ namespace MidiaScraper
                 if (metadata != null)
                     ShowMetadataPreview(metadata);
 
-                await DownloadOneAsync(url, _cts.Token);
+                await DownloadOneAsync(url, metadata?.Title ?? url, _cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -279,7 +324,7 @@ namespace MidiaScraper
         /// _isDownloading/_cts — quem chama decide isso (permite reuso tanto para o caminho de uma
         /// única URL quanto para cada item de um lote de playlist).
         /// </summary>
-        private async Task<bool> DownloadOneAsync(string url, CancellationToken ct)
+        private async Task<bool> DownloadOneAsync(string url, string title, CancellationToken ct)
         {
             var options = BuildDownloadOptions(url);
             var args = YtDlpArgumentBuilder.Build(options);
@@ -301,6 +346,7 @@ namespace MidiaScraper
                     SetStatus("Concluído", true);
                     AppendLog("─────────────────────────────────────────────");
                     AppendLog("✅ Download concluído!");
+                    await RecordHistoryAsync(url, title, "Concluído");
                     return true;
                 }
 
@@ -309,16 +355,44 @@ namespace MidiaScraper
                 SetStatus("Erro", false);
                 AppendLog($"⚠️  yt-dlp encerrou com código de saída: {result.ExitCode}");
                 ShowErrorBanner($"O download falhou (yt-dlp encerrou com código {result.ExitCode}). Veja o console para detalhes.");
+                await RecordHistoryAsync(url, title, "Falhou");
                 return false;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                await RecordHistoryAsync(url, title, "Cancelado");
+                throw;
+            }
+            catch (Exception ex)
             {
                 AppendLog($"❌ Erro inesperado: {ex.Message}");
                 SetProgress(0, "Erro no download");
                 ProgressEta.Text = "";
                 SetStatus("Erro", false);
                 ShowErrorBanner($"Erro inesperado: {ex.Message}");
+                await RecordHistoryAsync(url, title, "Falhou");
                 return false;
+            }
+        }
+
+        private async Task RecordHistoryAsync(string url, string title, string status)
+        {
+            var entry = new DownloadHistoryEntry
+            {
+                Url = url,
+                Title = title,
+                CompletedAt = DateTimeOffset.Now,
+                Status = status
+            };
+            _history.Insert(0, entry);
+
+            try
+            {
+                await _historyStore.SaveAsync(_history.ToList());
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"⚠️  Não foi possível salvar o histórico: {ex.Message}");
             }
         }
 
@@ -377,6 +451,7 @@ namespace MidiaScraper
 
             ProgressCard.Visibility = Visibility.Collapsed;
             EmptyStateCard.Visibility = Visibility.Collapsed;
+            HistoryCard.Visibility = Visibility.Collapsed;
             PlaylistSelectionCard.Visibility = Visibility.Visible;
         }
 
@@ -436,7 +511,7 @@ namespace MidiaScraper
                 item.Status = "Baixando...";
                 try
                 {
-                    bool ok = await DownloadOneAsync(item.WatchUrl, _cts.Token);
+                    bool ok = await DownloadOneAsync(item.WatchUrl, item.Title, _cts.Token);
                     item.Status = ok ? "Concluído" : "Falhou";
                 }
                 catch (OperationCanceledException)
@@ -602,6 +677,8 @@ namespace MidiaScraper
             DownloadSelectedButton.IsEnabled = !downloading;
             SelectAllButton.IsEnabled = !downloading;
             SelectNoneButton.IsEnabled = !downloading;
+            HistoryButton.IsEnabled = !downloading;
+            RecentUrlsButton.IsEnabled = !downloading;
         }
 
         private void SetProgress(int percent, string statusText)

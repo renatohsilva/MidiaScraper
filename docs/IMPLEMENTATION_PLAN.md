@@ -223,19 +223,23 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 >
 > Cancelamento confirmado no teste real: "Parar" cancela o item ativo da fila; o loop segue para o próximo item automaticamente.
 
-### Passo 3.4 — Histórico persistente de downloads 🟡
+### Passo 3.4 — Histórico persistente de downloads 🟡 — ✅ concluído em 2026-09-14
 
-- **Arquivos novos:** `Models/DownloadHistoryEntry.cs` (`Url`, `Title`, `CompletedAt`, `FilePath`, `Status`), `Services/Downloads/DownloadHistoryStore.cs` (lê/grava JSON em `%AppData%\MidiaScraper\history.json` via `System.Text.Json`)
-- **Arquivos alterados:** `MainWindow.xaml` (novo painel/aba de histórico), `ViewModels/MainViewModel.cs` (gravar uma entrada ao concluir cada item da fila)
+- **Arquivos novos:** `Models/DownloadHistoryEntry.cs` (`Url`, `Title`, `CompletedAt`, ~~`FilePath`~~, `Status`), `Services/Downloads/DownloadHistoryStore.cs` (lê/grava JSON em `%AppData%\MidiaScraper\history.json` via `System.Text.Json`)
+- **Arquivos alterados:** `MainWindow.xaml` (novo painel de histórico, aberto por um botão "Histórico" no rodapé), `MainWindow.xaml.cs` (grava uma entrada a cada resultado terminal de download — Concluído/Falhou/Cancelado — direto em `DownloadOneAsync`, já que não há `ViewModels/MainViewModel.cs` formal)
 - **Impactos possíveis:** primeiro estado persistido em disco fora da pasta de downloads do usuário — tratar ausência do arquivo (primeira execução) e conteúdo corrompido (JSON inválido) sem crashar o app, apenas iniciando com histórico vazio e logando o problema.
 - **Depende de:** Passo 3.3 (o ponto de conclusão de item na fila é o gatilho natural para gravar histórico).
 
-### Passo 3.5 — Reutilização de URLs recentes 🟡
+> `FilePath` foi removido do modelo em relação ao plano original: `YtDlpMediaDownloader`/`DownloadResult` não capturam o caminho final do arquivo baixado hoje (isso é trabalho do Passo 3.8, "abrir arquivo recém-baixado"), então não havia valor real para preencher esse campo ainda. Pode ser adicionado de volta quando o Passo 3.8 for implementado. Testado: histórico persiste corretamente entre reinícios do app, e um arquivo ausente/corrompido não derruba a inicialização (comportamento coberto pelo `try/catch` em `LoadAsync`, não testado com um arquivo corrompido de propósito nesta rodada).
+
+### Passo 3.5 — Reutilização de URLs recentes 🟡 — ✅ concluído em 2026-09-14
 
 - **Arquivos alterados:** `MainWindow.xaml` (dropdown/sugestão no campo de URL), `MainWindow.xaml.cs`
 - **Arquivos novos:** nenhum — reaproveita `DownloadHistoryStore` (Passo 3.4) como fonte, em vez de criar um segundo arquivo de persistência só para URLs recentes.
 - **Impactos possíveis:** baixo, aditivo.
 - **Depende de:** Passo 3.4.
+
+> Implementado como um botão "🕘" ao lado de "Colar" que abre um `Popup` com as últimas 8 URLs únicas do histórico (mais recente primeiro); clicar em uma preenche a caixa de URL. Testado manualmente.
 
 ### Passo 3.6 — Configurações persistidas 🟡
 

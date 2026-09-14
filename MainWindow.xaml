@@ -255,6 +255,8 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <!-- URL TextBox wrapped in Border for rounded corners -->
                         <Border Grid.Column="0" Height="50"
@@ -288,8 +290,41 @@
                             </StackPanel>
                         </Button>
 
-                        <Button x:Name="DownloadButton"
+                        <Button x:Name="RecentUrlsButton"
                                 Grid.Column="4"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Height="50" Width="50"
+                                Click="RecentUrlsButton_Click"
+                                AutomationProperties.Name="Ver URLs recentes"
+                                ToolTip="URLs recentes">
+                            <TextBlock Text="🕘" FontSize="16"/>
+                        </Button>
+
+                        <Popup x:Name="RecentUrlsPopup" PlacementTarget="{Binding ElementName=RecentUrlsButton}"
+                               Placement="Bottom" StaysOpen="False">
+                            <Border Background="#16161F" BorderBrush="#2D2D42" BorderThickness="1"
+                                    CornerRadius="8" Padding="6" MaxWidth="480" MinWidth="200">
+                                <ItemsControl x:Name="RecentUrlsList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding}" Click="RecentUrlItem_Click"
+                                                    Background="Transparent" BorderThickness="0"
+                                                    Foreground="#E2E8F0" HorizontalContentAlignment="Left"
+                                                    Padding="10,7" Cursor="Hand" FontSize="12">
+                                                <Button.Resources>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                                    </Style>
+                                                </Button.Resources>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Popup>
+
+                        <Button x:Name="DownloadButton"
+                                Grid.Column="6"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Height="50" Width="140"
                                 Click="DownloadButton_Click"
@@ -489,6 +524,65 @@
                         </Button>
                     </Grid>
                 </Border>
+
+                <!-- History -->
+                <Border x:Name="HistoryCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="200"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="HISTÓRICO" FontSize="10" FontWeight="Bold"
+                                       Foreground="#94A3B8" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" x:Name="CloseHistoryButton"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="#94A3B8" FontSize="12" Cursor="Hand" Padding="8,4"
+                                    Click="CloseHistoryButton_Click"
+                                    AutomationProperties.Name="Fechar histórico">
+                                <TextBlock Text="✕"/>
+                            </Button>
+                        </Grid>
+
+                        <Border Grid.Row="2" Background="#1A1A24" CornerRadius="8"
+                                BorderBrush="#2D2D42" BorderThickness="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="HistoryItemsControl" Margin="4">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="8,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding Title}" Foreground="#E2E8F0"
+                                                               FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding CompletedAtDisplay}"
+                                                               Foreground="#94A3B8" FontSize="11" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Status}"
+                                                           Foreground="#94A3B8" FontSize="11"
+                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+                </Border>
             </Grid>
 
             <!-- Error Banner -->
@@ -556,6 +650,8 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="12"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="DownloadCountText" Text="0 downloads concluídos"
@@ -587,6 +683,18 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📂" Margin="0,0,6,0"/>
                             <TextBlock Text="Abrir pasta"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="HistoryButton"
+                            Grid.Column="5"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Height="36" Padding="16,8"
+                            Click="HistoryButton_Click"
+                            AutomationProperties.Name="Ver histórico de downloads">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🕘" Margin="0,0,6,0"/>
+                            <TextBlock Text="Histórico"/>
                         </StackPanel>
                     </Button>
                 </Grid>
