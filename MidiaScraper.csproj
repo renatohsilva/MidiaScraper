@@ -11,4 +11,10 @@
     <RootNamespace>MidiaScraper</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="MidiaScraper.Tests\**" />
+    <EmbeddedResource Remove="MidiaScraper.Tests\**" />
+    <None Remove="MidiaScraper.Tests\**" />
+  </ItemGroup>
+
 </Project>

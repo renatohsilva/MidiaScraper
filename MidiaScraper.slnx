@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MidiaScraper.csproj" />
+  <Project Path="MidiaScraper.Tests/MidiaScraper.Tests.csproj" />
+</Solution>
