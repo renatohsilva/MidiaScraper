@@ -250,12 +250,14 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 > Salva a cada mudança de pasta, formato ou checkbox (`SaveSettingsAsync`), em vez de só ao fechar — mais simples e robusto contra um fechamento anormal do processo. Uma flag `_settingsLoaded` evita que a seleção inicial dos controles (disparada durante a própria carga das configurações) sobrescreva o arquivo com os valores padrão antes da leitura terminar. Testado: pasta, formato e checkboxes persistem entre reinícios.
 
-### Passo 3.7 — Retry automático com backoff 🟡
+### Passo 3.7 — Retry automático com backoff 🟡 — ✅ concluído em 2026-09-14
 
 - **Arquivos alterados:** `Services/YtDlp/YtDlpMediaDownloader.cs` (laço de retry com backoff exponencial ao redor da tentativa de download)
 - **Arquivos novos:** nenhum (implementação manual, sem adicionar Polly — mantém a superfície de dependências pequena para um único ponto de uso)
 - **Impactos possíveis:** precisa distinguir falha de rede/timeout (deve tentar de novo) de falha de URL inválida/conteúdo não encontrado (não deve tentar de novo) — essa classificação de erro é nova e precisa ser explicitada nos códigos de saída/mensagens do yt-dlp. Sem isso, o retry pode mascarar um erro definitivo atrás de tentativas inúteis. Também deve informar visualmente "Tentativa 2 de 3..." para não parecer travado.
 - **Depende de:** Fase 1 completa.
+
+> Classificação feita por heurística de texto (`RetryableErrorHints`) sobre a última linha de aviso/erro capturada durante a tentativa — cobre timeouts, resets de conexão, HTTP 429/5xx e "Unable to download webpage" (falha de rede/DNS genérica); qualquer outra falha é tratada como definitiva e não tenta de novo. Até 3 tentativas, com 2s/5s de espera entre elas, comunicadas via um novo `DownloadLineKind.Retry` (loga e atualiza o texto da barra de progresso, para não parecer travado). Validado com uma URL de domínio inexistente — confirmado no terminal que o yt-dlp responde com "Unable to download webpage" nesse caso, e o app mostrou as tentativas 2 e 3 corretamente.
 
 ### Passo 3.8 — Quick wins: abrir arquivo recém-baixado + limite de velocidade 🟡
 

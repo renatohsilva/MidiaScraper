@@ -6,7 +6,8 @@ namespace MidiaScraper.Models
         Destination,
         Info,
         Warning,
-        Raw
+        Raw,
+        Retry
     }
 
     public class DownloadProgressInfo

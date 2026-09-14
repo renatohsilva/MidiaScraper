@@ -704,6 +704,11 @@ namespace MidiaScraper
                 case DownloadLineKind.Raw:
                     AppendLog(info.RawLine);
                     break;
+                case DownloadLineKind.Retry:
+                    _maxProgressPercent = 0;
+                    AppendLog($"🔄 {info.RawLine}");
+                    SetProgress(0, info.RawLine);
+                    break;
             }
         }
 
