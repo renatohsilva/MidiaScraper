@@ -300,14 +300,16 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 >
 > Testado manualmente com playlist real, concorrência 2 e 3: barras de progresso avançam independentemente, console mostra linhas prefixadas por `[Título]` sem mistura, "Parar" cancela todos os itens ativos, sem processos `yt-dlp`/`ffmpeg` órfãos.
 
-### Passo 4.3 — Detecção de arquivos duplicados 🟡
+### Passo 4.3 — Detecção de arquivos duplicados 🟡 — ✅ concluído em 2026-09-14
 
-- **Arquivos alterados:** `Services/Downloads/DownloadHistoryStore.cs` (adicionar consulta por identificador de mídia), ponto de enfileiramento em `ViewModels/MainViewModel.cs` (checar antes de adicionar à fila)
+- **Arquivos alterados:** `Services/Downloads/DownloadHistoryStore.cs` (adicionar consulta por identificador de mídia), ponto de enfileiramento em ~~`ViewModels/MainViewModel.cs`~~ `MainWindow.xaml.cs` (`ShowPlaylistSelection`/`ShowManualUrlQueue`, já que não há `MainViewModel` formal)
 - **Arquivos novos:** nenhum
 - **Impactos possíveis:** baixo; usa o campo `id` já disponível via `MediaMetadata` (Passo 3.1) como chave estável, em vez de comparar por nome de arquivo (frágil).
 - **Depende de:** Passo 3.1 (metadados) e Passo 3.4 (histórico).
 
-**Checkpoint de fim de Fase 4:** baixar uma playlist real com concorrência 3, observar uso de CPU/rede, confirmar nenhum processo órfão ao final.
+> `DownloadHistoryEntry` ganhou um campo `MediaId` opcional, propagado a partir de `metadata.Id`/`entry.Id` em todo ponto que grava histórico. `DownloadHistoryStore.IsAlreadyDownloaded` (método estático, testado com 5 testes unitários) prioriza `MediaId` quando disponível e cai para comparação de URL (case-insensitive) quando não — só considera entradas com status "Concluído" (uma tentativa falha/cancelada não conta como já baixado). Itens já baixados aparecem na lista de seleção como "Já baixado" e vêm desmarcados por padrão, mas o usuário pode marcá-los de novo se quiser um redownload. Escopo limitado aos pontos de fila (playlist/URLs manuais); o caminho de URL única não verifica duplicidade, mantendo o fluxo de 1 clique sem fricção extra. Testado manualmente com uma playlist já baixada antes.
+
+**Checkpoint de fim de Fase 4 — ✅ Fase 4 completa em 2026-09-14 (Passos 4.1–4.3, testados manualmente um a um):** logs estruturados persistidos, download paralelo configurável (1-5 simultâneos, testado com concorrência 3 numa playlist real, sem processos órfãos), e detecção de duplicados na fila.
 
 ---
 

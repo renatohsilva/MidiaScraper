@@ -376,7 +376,7 @@ namespace MidiaScraper
                 if (metadata != null)
                     ShowMetadataPreview(metadata);
 
-                await DownloadOneAsync(url, metadata?.Title ?? url, _cts.Token);
+                await DownloadOneAsync(url, metadata?.Title ?? url, metadata?.Id, _cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -398,7 +398,7 @@ namespace MidiaScraper
         /// _isDownloading/_cts — quem chama decide isso (permite reuso tanto para o caminho de uma
         /// única URL quanto para cada item de um lote de playlist).
         /// </summary>
-        private async Task<bool> DownloadOneAsync(string url, string title, CancellationToken ct)
+        private async Task<bool> DownloadOneAsync(string url, string title, string? mediaId, CancellationToken ct)
         {
             var options = BuildDownloadOptions(url);
             var args = YtDlpArgumentBuilder.Build(options);
@@ -421,7 +421,7 @@ namespace MidiaScraper
                     AppendLog("─────────────────────────────────────────────");
                     AppendLog("✅ Download concluído!");
                     ShowOpenFileButton(result.FilePath);
-                    await RecordHistoryAsync(url, title, "Concluído");
+                    await RecordHistoryAsync(url, title, mediaId, "Concluído");
                     return true;
                 }
 
@@ -430,12 +430,12 @@ namespace MidiaScraper
                 SetStatus("Erro", false);
                 AppendLog($"⚠️  yt-dlp encerrou com código de saída: {result.ExitCode}");
                 ShowErrorBanner($"O download falhou (yt-dlp encerrou com código {result.ExitCode}). Veja o console para detalhes.");
-                await RecordHistoryAsync(url, title, "Falhou");
+                await RecordHistoryAsync(url, title, mediaId, "Falhou");
                 return false;
             }
             catch (OperationCanceledException)
             {
-                await RecordHistoryAsync(url, title, "Cancelado");
+                await RecordHistoryAsync(url, title, mediaId, "Cancelado");
                 throw;
             }
             catch (Exception ex)
@@ -446,17 +446,18 @@ namespace MidiaScraper
                 ProgressEta.Text = "";
                 SetStatus("Erro", false);
                 ShowErrorBanner($"Erro inesperado: {ex.Message}");
-                await RecordHistoryAsync(url, title, "Falhou");
+                await RecordHistoryAsync(url, title, mediaId, "Falhou");
                 return false;
             }
         }
 
-        private async Task RecordHistoryAsync(string url, string title, string status)
+        private async Task RecordHistoryAsync(string url, string title, string? mediaId, string status)
         {
             var entry = new DownloadHistoryEntry
             {
                 Url = url,
                 Title = title,
+                MediaId = mediaId,
                 CompletedAt = DateTimeOffset.Now,
                 Status = status
             };
@@ -487,6 +488,9 @@ namespace MidiaScraper
             _playlistItems.Clear();
             foreach (var entry in metadata.Entries)
             {
+                bool alreadyDownloaded = Services.Downloads.DownloadHistoryStore.IsAlreadyDownloaded(
+                    _history, entry.Id, entry.WatchUrl ?? "");
+
                 _playlistItems.Add(new DownloadItemViewModel
                 {
                     Id = entry.Id,
@@ -494,8 +498,8 @@ namespace MidiaScraper
                     ThumbnailUrl = entry.ThumbnailUrl,
                     DurationSeconds = entry.DurationSeconds,
                     WatchUrl = entry.WatchUrl,
-                    IsSelected = true,
-                    Status = "Pendente"
+                    IsSelected = !alreadyDownloaded,
+                    Status = alreadyDownloaded ? "Já baixado" : "Pendente"
                 });
             }
 
@@ -507,13 +511,15 @@ namespace MidiaScraper
             _playlistItems.Clear();
             foreach (string url in urls)
             {
+                bool alreadyDownloaded = Services.Downloads.DownloadHistoryStore.IsAlreadyDownloaded(_history, null, url);
+
                 _playlistItems.Add(new DownloadItemViewModel
                 {
                     Id = url,
                     Title = url.Length > 70 ? url[..70] + "…" : url,
                     WatchUrl = url,
-                    IsSelected = true,
-                    Status = "Pendente"
+                    IsSelected = !alreadyDownloaded,
+                    Status = alreadyDownloaded ? "Já baixado" : "Pendente"
                 });
             }
 
@@ -628,27 +634,27 @@ namespace MidiaScraper
                     item.Status = "Concluído";
                     _completedDownloads++;
                     UpdateDownloadCount();
-                    await RecordHistoryAsync(item.WatchUrl, item.Title, "Concluído");
+                    await RecordHistoryAsync(item.WatchUrl, item.Title, item.Id, "Concluído");
                 }
                 else
                 {
                     item.Status = $"Falhou (código {result.ExitCode})";
                     AppendLog($"⚠️  [{item.Title}] yt-dlp encerrou com código de saída: {result.ExitCode}");
-                    await RecordHistoryAsync(item.WatchUrl, item.Title, "Falhou");
+                    await RecordHistoryAsync(item.WatchUrl, item.Title, item.Id, "Falhou");
                 }
             }
             catch (OperationCanceledException)
             {
                 item.Status = "Cancelado";
                 AppendLog($"⛔ [{item.Title}] Cancelado pelo usuário.");
-                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, "Cancelado");
+                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, item.Id, "Cancelado");
             }
             catch (Exception ex)
             {
                 Serilog.Log.Error(ex, "Erro inesperado ao baixar item da fila {Title}", item.Title);
                 item.Status = "Erro";
                 AppendLog($"❌ [{item.Title}] Erro inesperado: {ex.Message}");
-                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, "Falhou");
+                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, item.Id, "Falhou");
             }
             finally
             {

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using MidiaScraper.Models;
 
@@ -44,5 +45,19 @@ namespace MidiaScraper.Services.Downloads
             string json = JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(_filePath, json);
         }
+
+        /// <summary>
+        /// Verifica se uma mídia já foi baixada com sucesso antes. Prioriza o identificador estável
+        /// (<paramref name="mediaId"/>, ex.: id do vídeo) quando disponível — comparar por URL é
+        /// frágil (parâmetros de query variam, a mesma mídia pode aparecer em playlists diferentes).
+        /// Cai para comparação por URL apenas quando o id não está disponível (ex.: fila manual, sem
+        /// metadados buscados).
+        /// </summary>
+        public static bool IsAlreadyDownloaded(IEnumerable<DownloadHistoryEntry> history, string? mediaId, string url) =>
+            history.Any(entry =>
+                entry.Status == "Concluído" &&
+                (mediaId != null
+                    ? entry.MediaId == mediaId
+                    : string.Equals(entry.Url, url, StringComparison.OrdinalIgnoreCase)));
     }
 }
