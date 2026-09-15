@@ -156,6 +156,14 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
+
+        <!-- Per-item queue progress bar -->
+        <Style x:Key="ItemProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="Height" Value="4"/>
+            <Setter Property="Background" Value="#1A1A24"/>
+            <Setter Property="Foreground" Value="#7C3AED"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="0">
@@ -513,8 +521,19 @@
                                     Click="SelectAllButton_Click"/>
                             <Button x:Name="SelectNoneButton" Content="Selecionar nenhum"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    Height="32" Padding="12,6" FontSize="12"
+                                    Height="32" Padding="12,6" FontSize="12" Margin="0,0,20,0"
                                     Click="SelectNoneButton_Click"/>
+                            <TextBlock Text="Simultâneos:" Foreground="#94A3B8" FontSize="12"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="MaxConcurrentCombo" Width="60" Height="32"
+                                      Style="{StaticResource DarkComboStyle}" FontSize="12"
+                                      SelectionChanged="SettingsComboBox_Changed">
+                                <ComboBoxItem Content="1" IsSelected="True" Tag="1"/>
+                                <ComboBoxItem Content="2" Tag="2"/>
+                                <ComboBoxItem Content="3" Tag="3"/>
+                                <ComboBoxItem Content="4" Tag="4"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                            </ComboBox>
                         </StackPanel>
 
                         <Border Grid.Row="4" Background="#1A1A24" CornerRadius="8"
@@ -524,22 +543,32 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="8,6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="8"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <CheckBox Grid.Column="0" Style="{StaticResource DarkCheckStyle}"
-                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                          VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding Title}"
-                                                           Foreground="#E2E8F0" FontSize="12"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding Status}"
-                                                           Foreground="#94A3B8" FontSize="11"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="4"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid Grid.Row="0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox Grid.Column="0" Style="{StaticResource DarkCheckStyle}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Title}"
+                                                               Foreground="#E2E8F0" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Status}"
+                                                               Foreground="#94A3B8" FontSize="11"
+                                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                </Grid>
+                                                <ProgressBar Grid.Row="2" Style="{StaticResource ItemProgressBarStyle}"
+                                                             Minimum="0" Maximum="100"
+                                                             Value="{Binding ProgressPercent, Mode=OneWay}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

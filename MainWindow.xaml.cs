@@ -31,6 +31,7 @@ namespace MidiaScraper
         private int _completedDownloads = 0;
         private bool _isDownloading = false;
         private CancellationTokenSource? _cts;
+        private CancellationTokenSource? _batchCts;
         private string _ytdlpPath = string.Empty;
         private double _maxProgressPercent;
         private readonly ObservableCollection<DownloadItemViewModel> _playlistItems = new();
@@ -311,6 +312,7 @@ namespace MidiaScraper
             };
             SelectComboItemByTag(FormatCombo, formatTag);
             SelectComboItemByTag(RateLimitCombo, _settings.RateLimit ?? "");
+            SelectComboItemByTag(MaxConcurrentCombo, _settings.MaxConcurrentDownloads.ToString());
 
             SubtitleCheck.IsChecked = _settings.DefaultSubtitles;
             PlaylistCheck.IsChecked = _settings.DefaultPlaylist;
@@ -326,6 +328,7 @@ namespace MidiaScraper
             _settings.DefaultPlaylist = PlaylistCheck.IsChecked == true;
             string? rateLimitTag = (RateLimitCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
             _settings.RateLimit = string.IsNullOrEmpty(rateLimitTag) ? null : rateLimitTag;
+            _settings.MaxConcurrentDownloads = GetMaxConcurrentDownloads();
 
             try
             {
@@ -544,6 +547,18 @@ namespace MidiaScraper
             await RunSelectedPlaylistItemsAsync();
         }
 
+        private int GetMaxConcurrentDownloads() =>
+            int.TryParse((MaxConcurrentCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string, out int value)
+                ? value
+                : 1;
+
+        /// <summary>
+        /// Processa os itens marcados com até <see cref="GetMaxConcurrentDownloads"/> downloads
+        /// simultâneos (Passo 4.2). A lista de itens permanece visível durante o lote — cada item
+        /// tem sua própria barra de progresso, em vez de compartilhar o ProgressCard, já que vários
+        /// podem estar baixando ao mesmo tempo. "Parar" cancela o lote inteiro (_batchCts), não um
+        /// item por vez, porque com paralelismo não existe mais "o item ativo".
+        /// </summary>
         private async Task RunSelectedPlaylistItemsAsync()
         {
             var selected = _playlistItems.Where(i => i.IsSelected).ToList();
@@ -553,55 +568,115 @@ namespace MidiaScraper
                 return;
             }
 
-            PlaylistSelectionCard.Visibility = Visibility.Collapsed;
-            ProgressCard.Visibility = Visibility.Visible;
             HideErrorBanner();
 
+            int maxConcurrent = GetMaxConcurrentDownloads();
             AppendLog("");
-            AppendLog($"▶ Iniciando lote de {selected.Count} item(ns) da playlist...");
+            AppendLog($"▶ Iniciando lote de {selected.Count} item(ns) (até {maxConcurrent} simultâneo(s))...");
 
-            foreach (var item in selected)
+            _isDownloading = true;
+            _batchCts = new CancellationTokenSource();
+            SetDownloadingState(true);
+
+            using (var semaphore = new SemaphoreSlim(maxConcurrent))
             {
-                _isDownloading = true;
-                _cts = new CancellationTokenSource();
-                _maxProgressPercent = 0;
-                SetDownloadingState(true);
-                HideMetadataPreview();
-                HideOpenFileButton();
-                SetProgress(0, "Iniciando download...");
-                ProgressEta.Text = "";
-
-                AppendLog("");
-                AppendLog($"▶ {item.Title}");
-
-                if (string.IsNullOrWhiteSpace(item.WatchUrl))
-                {
-                    item.Status = "Erro (sem URL)";
-                    AppendLog("❌ Não foi possível determinar a URL deste item.");
-                    ResetDownloadState();
-                    continue;
-                }
-
-                item.Status = "Baixando...";
-                try
-                {
-                    bool ok = await DownloadOneAsync(item.WatchUrl, item.Title, _cts.Token);
-                    item.Status = ok ? "Concluído" : "Falhou";
-                }
-                catch (OperationCanceledException)
-                {
-                    item.Status = "Cancelado";
-                    AppendLog("⛔ Item cancelado pelo usuário.");
-                    SetStatus("Cancelado", false);
-                }
-                finally
-                {
-                    ResetDownloadState();
-                }
+                var tasks = selected.Select(item => RunQueueItemAsync(item, semaphore, _batchCts.Token));
+                await Task.WhenAll(tasks);
             }
+
+            _isDownloading = false;
+            SetDownloadingState(false);
+            _batchCts.Dispose();
+            _batchCts = null;
 
             AppendLog("");
             AppendLog("✅ Lote de playlist finalizado.");
+        }
+
+        private async Task RunQueueItemAsync(DownloadItemViewModel item, SemaphoreSlim semaphore, CancellationToken batchToken)
+        {
+            try
+            {
+                await semaphore.WaitAsync(batchToken);
+            }
+            catch (OperationCanceledException)
+            {
+                item.Status = "Cancelado";
+                return;
+            }
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(item.WatchUrl))
+                {
+                    item.Status = "Erro (sem URL)";
+                    AppendLog($"❌ [{item.Title}] Não foi possível determinar a URL deste item.");
+                    return;
+                }
+
+                item.Status = "Baixando...";
+                item.ProgressPercent = 0;
+
+                var options = BuildDownloadOptions(item.WatchUrl);
+                var args = YtDlpArgumentBuilder.Build(options);
+                var progress = new Progress<DownloadProgressInfo>(info => RenderQueueItemProgress(item, info));
+
+                var result = await _mediaDownloader.DownloadAsync(_ytdlpPath, args, progress, batchToken);
+                if (result.Success)
+                {
+                    item.ProgressPercent = 100;
+                    item.Status = "Concluído";
+                    _completedDownloads++;
+                    UpdateDownloadCount();
+                    await RecordHistoryAsync(item.WatchUrl, item.Title, "Concluído");
+                }
+                else
+                {
+                    item.Status = $"Falhou (código {result.ExitCode})";
+                    AppendLog($"⚠️  [{item.Title}] yt-dlp encerrou com código de saída: {result.ExitCode}");
+                    await RecordHistoryAsync(item.WatchUrl, item.Title, "Falhou");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                item.Status = "Cancelado";
+                AppendLog($"⛔ [{item.Title}] Cancelado pelo usuário.");
+                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, "Cancelado");
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Erro inesperado ao baixar item da fila {Title}", item.Title);
+                item.Status = "Erro";
+                AppendLog($"❌ [{item.Title}] Erro inesperado: {ex.Message}");
+                await RecordHistoryAsync(item.WatchUrl ?? "", item.Title, "Falhou");
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
+        private void RenderQueueItemProgress(DownloadItemViewModel item, DownloadProgressInfo info)
+        {
+            switch (info.Kind)
+            {
+                case DownloadLineKind.Progress:
+                    item.ProgressPercent = Math.Max(info.Percent ?? item.ProgressPercent, item.ProgressPercent);
+                    break;
+                case DownloadLineKind.Destination:
+                    // Novo arquivo começando (ex.: vídeo terminou, áudio começa agora) — mesmo
+                    // raciocínio do RenderProgressInfo do caminho de URL única.
+                    item.ProgressPercent = 0;
+                    AppendLog($"📄 [{item.Title}] {info.RawLine}");
+                    break;
+                case DownloadLineKind.Warning:
+                    AppendLog($"⚠️  [{item.Title}] {info.RawLine}");
+                    break;
+                case DownloadLineKind.Retry:
+                    item.Status = "Reconectando...";
+                    AppendLog($"🔄 [{item.Title}] {info.RawLine}");
+                    break;
+            }
         }
 
         private DownloadOptions BuildDownloadOptions(string url)
@@ -776,7 +851,10 @@ namespace MidiaScraper
         private void StopDownload()
         {
             if (!_isDownloading) return;
+            // No caminho de URL única/item sequencial de playlist, _cts é o token ativo; em um lote
+            // paralelo (Passo 4.2), é _batchCts — cancela o que estiver em uso, o outro é sempre null.
             _cts?.Cancel();
+            _batchCts?.Cancel();
         }
 
         private void SetDownloadingState(bool downloading)
@@ -792,6 +870,7 @@ namespace MidiaScraper
             HistoryButton.IsEnabled = !downloading;
             RecentUrlsButton.IsEnabled = !downloading;
             RateLimitCombo.IsEnabled = !downloading;
+            MaxConcurrentCombo.IsEnabled = !downloading;
         }
 
         private void SetProgress(int percent, string statusText)

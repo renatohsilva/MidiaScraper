@@ -285,12 +285,20 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 > Simplificação deliberada: em vez de espalhar chamadas ao Serilog por cada ponto de `Services/*`/`MainWindow.xaml.cs`, o único método `AppendLog` (que já é o destino do callback `Action<string> log` usado por todos os serviços) passou a espelhar cada linha também via `Serilog.Log.Information` — um único ponto de integração cobre tudo que já aparece no console, sem duplicar lógica de logging pelo código. Adicionado também um `Log.Error` com stack trace completo no catch genérico de `DownloadOneAsync`, e um handler de `DispatcherUnhandledException` em `App.xaml.cs`. Retenção: 7 arquivos diários em `%AppData%\MidiaScraper\logs\`. Testado: log persiste corretamente entre execuções e captura um download real do início ao fim.
 
-### Passo 4.2 — Download paralelo configurável 🟡
+### Passo 4.2 — Download paralelo configurável 🟡 — ✅ concluído em 2026-09-14
 
-- **Arquivos alterados:** `Services/Downloads/DownloadQueue.cs` (controle de concorrência via `SemaphoreSlim(maxConcurrent)`), `MainWindow.xaml` (controle de "downloads simultâneos" na UI), `Models/AppSettings.cs` (campo já estava reservado no Passo 3.6)
+- **Arquivos alterados:** ~~`Services/Downloads/DownloadQueue.cs`~~ (concorrência implementada direto em `MainWindow.xaml.cs`, ver nota), `MainWindow.xaml` (controle "Simultâneos" 1-5 na lista de fila; barra de progresso por item), `Models/AppSettings.cs` (`MaxConcurrentDownloads`, reservado desde o Passo 3.6)
 - **Arquivos novos:** nenhum
 - **Impactos possíveis:** passo de maior risco da Fase 4 — múltiplos processos `yt-dlp`/`ffmpeg` simultâneos precisam ter logs/progresso isolados por item (só é seguro porque a Fase 3 já entregou a UI baseada em lista, com progresso por item), e há risco de contenção de banda/disco entre os itens simultâneos. Testar explicitamente com uma playlist real e concorrência > 1 para confirmar que não há mistura de saída entre processos.
 - **Depende de:** Passo 4.1 (logs ajudam a diagnosticar problemas de concorrência) e Fase 3 completa.
+
+> **Correção importante feita antes de implementar:** a premissa acima ("só é seguro porque a Fase 3 já entregou... progresso por item") não era verdadeira na prática — a Fase 3 processava a fila sequencialmente com uma única barra de progresso compartilhada (`ProgressCard`); `DownloadItemViewModel.ProgressPercent` existia no modelo mas nunca tinha sido usado. Isso foi sinalizado ao usuário antes de começar, e o Passo 4.2 acabou incluindo esse trabalho de UI como pré-requisito real (barra de progresso por item na lista), não apenas o `SemaphoreSlim`.
+>
+> **Decisão de UX confirmada com o usuário:** com paralelismo não existe mais "o item ativo" para o botão Parar cancelar sozinho (comportamento decidido no Passo 3.3) — "Parar" agora cancela o lote inteiro via um `CancellationTokenSource` próprio do lote (`_batchCts`), distinto do `_cts` usado no caminho de URL única.
+>
+> **Simplificação deliberada:** não foi criado `Services/Downloads/DownloadQueue.cs` como classe separada — `RunSelectedPlaylistItemsAsync`/`RunQueueItemAsync` em `MainWindow.xaml.cs` usam `Task.WhenAll` sobre uma `SemaphoreSlim(maxConcurrent)` diretamente, consistente com a simplificação já registrada no Passo 3.3 (extrair um serviço formal fica para se a lógica crescer mais). O progresso por item usa um `ProgressBar` nativo do WPF (sem `ControlTemplate` customizado) estilizado só com `Background`/`Foreground`/`BorderThickness`.
+>
+> Testado manualmente com playlist real, concorrência 2 e 3: barras de progresso avançam independentemente, console mostra linhas prefixadas por `[Título]` sem mistura, "Parar" cancela todos os itens ativos, sem processos `yt-dlp`/`ffmpeg` órfãos.
 
 ### Passo 4.3 — Detecção de arquivos duplicados 🟡
 
