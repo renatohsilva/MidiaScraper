@@ -259,14 +259,18 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 > Classificação feita por heurística de texto (`RetryableErrorHints`) sobre a última linha de aviso/erro capturada durante a tentativa — cobre timeouts, resets de conexão, HTTP 429/5xx e "Unable to download webpage" (falha de rede/DNS genérica); qualquer outra falha é tratada como definitiva e não tenta de novo. Até 3 tentativas, com 2s/5s de espera entre elas, comunicadas via um novo `DownloadLineKind.Retry` (loga e atualiza o texto da barra de progresso, para não parecer travado). Validado com uma URL de domínio inexistente — confirmado no terminal que o yt-dlp responde com "Unable to download webpage" nesse caso, e o app mostrou as tentativas 2 e 3 corretamente.
 
-### Passo 3.8 — Quick wins: abrir arquivo recém-baixado + limite de velocidade 🟡
+### Passo 3.8 — Quick wins: abrir arquivo recém-baixado + limite de velocidade 🟡 — ✅ concluído em 2026-09-14
 
-- **Arquivos alterados:** `Services/YtDlp/YtDlpMediaDownloader.cs` (capturar o caminho final do arquivo a partir das linhas `[download] Destination:`/`[Merger]`, incluir no resultado), `Models/DownloadOptions.cs` (campo opcional `RateLimit`), `Services/YtDlp/YtDlpArgumentBuilder.cs` (adicionar `--limit-rate` quando definido), `MainWindow.xaml` (botão "Abrir arquivo" pós-conclusão; campo/preset de limite de velocidade), `MainWindow.xaml.cs`
+- **Arquivos alterados:** `Services/YtDlp/YtDlpMediaDownloader.cs` (capturar o caminho final do arquivo a partir das linhas `[download] Destination:`/`[Merger]`, incluir no resultado), `Models/DownloadOptions.cs` (campo opcional `RateLimit`), `Services/YtDlp/YtDlpArgumentBuilder.cs` (adicionar `--limit-rate` quando definido), `MainWindow.xaml` (botão "Abrir arquivo" pós-conclusão; combo de limite de velocidade), `MainWindow.xaml.cs`
 - **Arquivos novos:** nenhum
 - **Impactos possíveis:** baixo, aditivo.
 - **Depende de:** Fase 1 completa; pode ser feito a qualquer momento da Fase 3.
 
-**Checkpoint de fim de Fase 3:** testar um fluxo completo com uma playlist real pequena (2–3 itens): preview → seleção → fila → conclusão → aparece no histórico → aparece nas URLs recentes.
+> `YtDlpProgressParser` ganhou extração de caminho de arquivo (`FilePath`) a partir das linhas de destino/merge/já-baixado, propagada até `DownloadResult`. Limite de velocidade é um `ComboBox` com presets (500 KB/s a 5 MB/s) ao lado do combo de formato, persistido em `AppSettings.RateLimit` (Passo 3.6). Botão "Abrir arquivo" some por padrão e só aparece quando o download termina com sucesso e o caminho capturado realmente existe em disco (`File.Exists`); some de novo ao iniciar qualquer novo download. Testado manualmente: limite de velocidade reduz a taxa observada; "Abrir arquivo" abre o arquivo baixado.
+
+**Checkpoint de fim de Fase 3 — ✅ Fase 3 completa em 2026-09-14 (Passos 3.1–3.8, testados manualmente um a um):** preview de metadados, seleção de itens de playlist, fila via colagem de múltiplas URLs, histórico persistente, URLs recentes, configurações persistidas, retry automático e os dois quick wins do Passo 3.8 — todos validados individualmente ao longo da implementação, cobrindo o fluxo completo descrito neste checkpoint (preview → seleção → fila → conclusão → histórico → URLs recentes).
+>
+> Nota para a Fase 4: o Passo 4.1 abaixo descreve Serilog como "primeira dependência NuGet externa do projeto" — isso já não é mais exato, `CommunityToolkit.Mvvm` foi adotado no Passo 3.2. Serilog seria a segunda.
 
 ---
 

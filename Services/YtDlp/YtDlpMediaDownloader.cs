@@ -78,6 +78,7 @@ namespace MidiaScraper.Services.YtDlp
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             string? lastErrorLine = null;
+            string? lastFilePath = null;
 
             process.OutputDataReceived += (_, e) =>
             {
@@ -85,6 +86,7 @@ namespace MidiaScraper.Services.YtDlp
                 var info = YtDlpProgressParser.Parse(e.Data);
                 if (info == null) return;
                 if (info.Kind == DownloadLineKind.Warning) lastErrorLine = info.RawLine;
+                if (info.Kind == DownloadLineKind.Destination && info.FilePath != null) lastFilePath = info.FilePath;
                 progress.Report(info);
             };
             process.ErrorDataReceived += (_, e) =>
@@ -110,7 +112,7 @@ namespace MidiaScraper.Services.YtDlp
             if (ct.IsCancellationRequested)
                 throw new OperationCanceledException();
 
-            var result = new DownloadResult { Success = exitCode == 0, ExitCode = exitCode };
+            var result = new DownloadResult { Success = exitCode == 0, ExitCode = exitCode, FilePath = lastFilePath };
             return (result, lastErrorLine);
         }
     }

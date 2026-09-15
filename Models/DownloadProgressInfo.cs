@@ -18,5 +18,6 @@ namespace MidiaScraper.Models
         public string? SizeText { get; init; }
         public string? SpeedText { get; init; }
         public string? Eta { get; init; }
+        public string? FilePath { get; init; }
     }
 }

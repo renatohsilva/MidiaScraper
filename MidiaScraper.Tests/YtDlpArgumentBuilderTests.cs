@@ -9,13 +9,15 @@ public class YtDlpArgumentBuilderTests
         string url = "https://example.com/video",
         DownloadFormat format = DownloadFormat.Best,
         bool subtitles = false,
-        bool playlist = false) => new()
+        bool playlist = false,
+        string? rateLimit = null) => new()
     {
         Url = url,
         OutputFolder = @"C:\Downloads",
         Format = format,
         DownloadSubtitles = subtitles,
-        DownloadPlaylist = playlist
+        DownloadPlaylist = playlist,
+        RateLimit = rateLimit
     };
 
     [Fact]
@@ -114,6 +116,27 @@ public class YtDlpArgumentBuilderTests
         int outputIndex = args.IndexOf("-o");
         Assert.True(outputIndex >= 0);
         Assert.StartsWith(@"C:\Downloads", args[outputIndex + 1]);
+    }
+
+    [Fact]
+    public void Build_WithRateLimit_AddsLimitRateFlag()
+    {
+        var args = YtDlpArgumentBuilder.Build(MakeOptions(rateLimit: "1M"));
+
+        int limitIndex = args.IndexOf("--limit-rate");
+        Assert.True(limitIndex >= 0);
+        Assert.Equal("1M", args[limitIndex + 1]);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Build_WithoutRateLimit_OmitsLimitRateFlag(string? rateLimit)
+    {
+        var args = YtDlpArgumentBuilder.Build(MakeOptions(rateLimit: rateLimit));
+
+        Assert.DoesNotContain("--limit-rate", args);
     }
 
     [Fact]

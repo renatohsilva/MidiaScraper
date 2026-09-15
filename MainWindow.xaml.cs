@@ -37,6 +37,7 @@ namespace MidiaScraper
         private readonly ObservableCollection<DownloadHistoryEntry> _history = new();
         private AppSettings _settings = new();
         private bool _settingsLoaded;
+        private string? _lastDownloadedFilePath;
 
         // ── Constructor ──────────────────────────────────────────────────────────
         public MainWindow()
@@ -281,9 +282,26 @@ namespace MidiaScraper
             await SaveSettingsAsync();
         }
 
+        private async void SettingsComboBox_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            await SaveSettingsAsync();
+        }
+
+        private static void SelectComboItemByTag(System.Windows.Controls.ComboBox combo, string tag)
+        {
+            foreach (var obj in combo.Items)
+            {
+                if (obj is System.Windows.Controls.ComboBoxItem item && (string?)item.Tag == tag)
+                {
+                    combo.SelectedItem = item;
+                    return;
+                }
+            }
+        }
+
         private void ApplySettingsToControls()
         {
-            string tag = _settings.DefaultFormat switch
+            string formatTag = _settings.DefaultFormat switch
             {
                 DownloadFormat.AudioOnly => "audio",
                 DownloadFormat.Video1080 => "1080",
@@ -291,15 +309,8 @@ namespace MidiaScraper
                 DownloadFormat.Video480 => "480",
                 _ => "best"
             };
-
-            foreach (var obj in FormatCombo.Items)
-            {
-                if (obj is System.Windows.Controls.ComboBoxItem item && (string?)item.Tag == tag)
-                {
-                    FormatCombo.SelectedItem = item;
-                    break;
-                }
-            }
+            SelectComboItemByTag(FormatCombo, formatTag);
+            SelectComboItemByTag(RateLimitCombo, _settings.RateLimit ?? "");
 
             SubtitleCheck.IsChecked = _settings.DefaultSubtitles;
             PlaylistCheck.IsChecked = _settings.DefaultPlaylist;
@@ -313,6 +324,8 @@ namespace MidiaScraper
             _settings.DefaultFormat = ParseFormatTag((FormatCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string);
             _settings.DefaultSubtitles = SubtitleCheck.IsChecked == true;
             _settings.DefaultPlaylist = PlaylistCheck.IsChecked == true;
+            string? rateLimitTag = (RateLimitCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
+            _settings.RateLimit = string.IsNullOrEmpty(rateLimitTag) ? null : rateLimitTag;
 
             try
             {
@@ -337,6 +350,7 @@ namespace MidiaScraper
             ProgressCard.Visibility = Visibility.Visible;
             HideErrorBanner();
             HideMetadataPreview();
+            HideOpenFileButton();
             SetDownloadingState(true);
             SetProgress(0, "Buscando informações do vídeo...");
             ProgressEta.Text = "";
@@ -403,6 +417,7 @@ namespace MidiaScraper
                     SetStatus("Concluído", true);
                     AppendLog("─────────────────────────────────────────────");
                     AppendLog("✅ Download concluído!");
+                    ShowOpenFileButton(result.FilePath);
                     await RecordHistoryAsync(url, title, "Concluído");
                     return true;
                 }
@@ -551,6 +566,7 @@ namespace MidiaScraper
                 _maxProgressPercent = 0;
                 SetDownloadingState(true);
                 HideMetadataPreview();
+                HideOpenFileButton();
                 SetProgress(0, "Iniciando download...");
                 ProgressEta.Text = "";
 
@@ -591,6 +607,7 @@ namespace MidiaScraper
         {
             var selectedItem = FormatCombo.SelectedItem as System.Windows.Controls.ComboBoxItem;
             string? tag = selectedItem?.Tag as string;
+            string? rateLimitTag = (RateLimitCombo.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag as string;
 
             return new DownloadOptions
             {
@@ -598,7 +615,8 @@ namespace MidiaScraper
                 OutputFolder = _outputFolder,
                 Format = ParseFormatTag(tag),
                 DownloadSubtitles = SubtitleCheck.IsChecked == true,
-                DownloadPlaylist = PlaylistCheck.IsChecked == true
+                DownloadPlaylist = PlaylistCheck.IsChecked == true,
+                RateLimit = string.IsNullOrEmpty(rateLimitTag) ? null : rateLimitTag
             };
         }
 
@@ -661,6 +679,37 @@ namespace MidiaScraper
         {
             MetadataPreviewPanel.Visibility = Visibility.Collapsed;
             MetadataThumbnail.Source = null;
+        }
+
+        private void ShowOpenFileButton(string? filePath)
+        {
+            _lastDownloadedFilePath = filePath;
+            OpenDownloadedFileButton.Visibility =
+                !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void HideOpenFileButton()
+        {
+            _lastDownloadedFilePath = null;
+            OpenDownloadedFileButton.Visibility = Visibility.Collapsed;
+        }
+
+        private void OpenDownloadedFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastDownloadedFilePath) || !File.Exists(_lastDownloadedFilePath))
+            {
+                AppendLog("⚠️  O arquivo não está mais disponível no caminho esperado.");
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(_lastDownloadedFilePath) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"❌ Não foi possível abrir o arquivo: {ex.Message}");
+            }
         }
 
         private static string FormatDuration(double? durationSeconds)
@@ -741,6 +790,7 @@ namespace MidiaScraper
             SelectNoneButton.IsEnabled = !downloading;
             HistoryButton.IsEnabled = !downloading;
             RecentUrlsButton.IsEnabled = !downloading;
+            RateLimitCombo.IsEnabled = !downloading;
         }
 
         private void SetProgress(int percent, string statusText)

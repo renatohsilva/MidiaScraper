@@ -359,6 +359,18 @@
                                 <ComboBoxItem Content="480p" Tag="480"/>
                                 <ComboBoxItem Content="Somente áudio (MP3)" Tag="audio"/>
                             </ComboBox>
+
+                            <TextBlock Text="Limite:" Foreground="#94A3B8" FontSize="13"
+                                       VerticalAlignment="Center" Margin="16,0,8,0"/>
+                            <ComboBox x:Name="RateLimitCombo" Width="120" Height="36"
+                                      Style="{StaticResource DarkComboStyle}"
+                                      SelectionChanged="SettingsComboBox_Changed">
+                                <ComboBoxItem Content="Sem limite" IsSelected="True" Tag=""/>
+                                <ComboBoxItem Content="500 KB/s" Tag="500K"/>
+                                <ComboBoxItem Content="1 MB/s" Tag="1M"/>
+                                <ComboBoxItem Content="2 MB/s" Tag="2M"/>
+                                <ComboBoxItem Content="5 MB/s" Tag="5M"/>
+                            </ComboBox>
                         </StackPanel>
 
                         <CheckBox x:Name="SubtitleCheck" Grid.Column="2"
@@ -405,6 +417,7 @@
                             <RowDefinition Height="10"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
@@ -461,6 +474,19 @@
                             <TextBlock x:Name="ProgressEta" Grid.Column="1"
                                        Text="" Foreground="#94A3B8" FontSize="12" Margin="12,0,0,0"/>
                         </Grid>
+
+                        <Button x:Name="OpenDownloadedFileButton" Grid.Row="6"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Height="36" Padding="14,8" Margin="0,14,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed"
+                                Click="OpenDownloadedFileButton_Click"
+                                AutomationProperties.Name="Abrir arquivo baixado">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🎬" FontSize="13" Margin="0,0,6,0"/>
+                                <TextBlock Text="Abrir arquivo"/>
+                            </StackPanel>
+                        </Button>
                     </Grid>
                 </Border>
 

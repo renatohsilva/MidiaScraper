@@ -6,6 +6,7 @@ namespace MidiaScraper.Services.YtDlp
     {
         public required bool Success { get; init; }
         public int ExitCode { get; init; }
+        public string? FilePath { get; init; }
     }
 
     public interface IMediaDownloader

@@ -52,6 +52,12 @@ namespace MidiaScraper.Services.YtDlp
             if (!options.DownloadPlaylist)
                 args.Add("--no-playlist");
 
+            if (!string.IsNullOrWhiteSpace(options.RateLimit))
+            {
+                args.Add("--limit-rate");
+                args.Add(options.RateLimit);
+            }
+
             args.Add("-o");
             args.Add($"{options.OutputFolder}{Path.DirectorySeparatorChar}%(title)s.%(ext)s");
 

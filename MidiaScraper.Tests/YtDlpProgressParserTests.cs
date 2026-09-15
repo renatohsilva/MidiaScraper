@@ -60,6 +60,33 @@ public class YtDlpProgressParserTests
         Assert.Equal(line, info.RawLine);
     }
 
+    [Fact]
+    public void Parse_DownloadDestinationLine_ExtractsFilePath()
+    {
+        var info = YtDlpProgressParser.Parse(@"[download] Destination: C:\Downloads\My Video.mp4");
+
+        Assert.NotNull(info);
+        Assert.Equal(@"C:\Downloads\My Video.mp4", info!.FilePath);
+    }
+
+    [Fact]
+    public void Parse_MergerLine_ExtractsFilePathFromQuotes()
+    {
+        var info = YtDlpProgressParser.Parse(@"[Merger] Merging formats into ""C:\Downloads\My Video.mp4""");
+
+        Assert.NotNull(info);
+        Assert.Equal(@"C:\Downloads\My Video.mp4", info!.FilePath);
+    }
+
+    [Fact]
+    public void Parse_AlreadyDownloadedLine_ExtractsFilePathStrippingDownloadPrefix()
+    {
+        var info = YtDlpProgressParser.Parse(@"[download] C:\Downloads\My Video.mp4 has already been downloaded");
+
+        Assert.NotNull(info);
+        Assert.Equal(@"C:\Downloads\My Video.mp4", info!.FilePath);
+    }
+
     [Theory]
     [InlineData("[youtube] mILYtp4UHIQ: Downloading webpage")]
     [InlineData("[info] mILYtp4UHIQ: Downloading 1 format(s)")]
