@@ -276,12 +276,14 @@ Sub-passos, cada um migrando uma responsabilidade específica do `MainWindow.xam
 
 ## Fase 4 — Performance e Escala
 
-### Passo 4.1 — Observabilidade / logs persistidos (Serilog) 🟡
+### Passo 4.1 — Observabilidade / logs persistidos (Serilog) 🟡 — ✅ concluído em 2026-09-14
 
 - **Arquivos alterados:** `MidiaScraper.csproj` (adicionar `Serilog` + `Serilog.Sinks.File`), `App.xaml.cs` (bootstrap do logger no startup), pontos em `Services/*` e `MainWindow.xaml.cs` que hoje só chamam `AppendLog` passam a também logar estruturado
 - **Arquivos novos:** `Services/Logging/LoggingSetup.cs` (configuração central do Serilog)
-- **Impactos possíveis:** **primeira dependência NuGet externa do projeto** — hoje o `CODE_REVIEW.md` registra "zero dependências" como ponto positivo; essa troca é deliberada e deve ser comunicada como tal. Definir política de retenção de arquivo de log (ex.: 7 dias ou tamanho máximo) para não crescer indefinidamente em `%AppData%`.
+- **Impactos possíveis:** dependência NuGet externa (a segunda do projeto, depois de `CommunityToolkit.Mvvm` no Passo 3.2) — o `CODE_REVIEW.md` registrava "zero dependências" como ponto positivo; essa troca é deliberada e deve ser comunicada como tal. Definir política de retenção de arquivo de log (ex.: 7 dias ou tamanho máximo) para não crescer indefinidamente em `%AppData%`.
 - **Depende de:** Fase 1 completa (idealmente feito primeiro nesta fase, para já ajudar a diagnosticar os dois passos seguintes, que são mais arriscados).
+
+> Simplificação deliberada: em vez de espalhar chamadas ao Serilog por cada ponto de `Services/*`/`MainWindow.xaml.cs`, o único método `AppendLog` (que já é o destino do callback `Action<string> log` usado por todos os serviços) passou a espelhar cada linha também via `Serilog.Log.Information` — um único ponto de integração cobre tudo que já aparece no console, sem duplicar lógica de logging pelo código. Adicionado também um `Log.Error` com stack trace completo no catch genérico de `DownloadOneAsync`, e um handler de `DispatcherUnhandledException` em `App.xaml.cs`. Retenção: 7 arquivos diários em `%AppData%\MidiaScraper\logs\`. Testado: log persiste corretamente entre execuções e captura um download real do início ao fim.
 
 ### Passo 4.2 — Download paralelo configurável 🟡
 

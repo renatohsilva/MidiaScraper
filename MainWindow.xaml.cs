@@ -437,6 +437,7 @@ namespace MidiaScraper
             }
             catch (Exception ex)
             {
+                Serilog.Log.Error(ex, "Erro inesperado ao baixar {Url}", url);
                 AppendLog($"❌ Erro inesperado: {ex.Message}");
                 SetProgress(0, "Erro no download");
                 ProgressEta.Text = "";
@@ -822,6 +823,9 @@ namespace MidiaScraper
         {
             LogTextBox.AppendText(line + Environment.NewLine);
             LogTextBox.ScrollToEnd();
+
+            if (!string.IsNullOrWhiteSpace(line))
+                Serilog.Log.Information(line);
         }
 
         private void UpdateFolderDisplay()
