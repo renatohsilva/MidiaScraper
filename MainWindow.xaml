@@ -4,7 +4,7 @@
         Title="MídiaScraper" Height="680" Width="860"
         MinHeight="620" MinWidth="780"
         WindowStartupLocation="CenterScreen"
-        WindowState="Normal"
+        WindowState="Maximized"
         ShowInTaskbar="True"
         Background="#0F0F13"
         FontFamily="Segoe UI">

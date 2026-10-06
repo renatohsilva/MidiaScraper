@@ -12,6 +12,10 @@ namespace MidiaScraper.Services.YtDlp
             switch (options.Format)
             {
                 case DownloadFormat.AudioOnly:
+                    // Restringe à melhor faixa de áudio disponível: sem -f aqui, o yt-dlp baixaria
+                    // vídeo+áudio completo e só depois extrairia o áudio, desperdiçando banda/tempo.
+                    args.Add("-f");
+                    args.Add("bestaudio/best");
                     args.Add("-x");
                     args.Add("--audio-format");
                     args.Add("mp3");

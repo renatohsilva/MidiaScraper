@@ -59,6 +59,18 @@ public class YtDlpArgumentBuilderTests
         Assert.DoesNotContain("--merge-output-format", args);
     }
 
+    [Fact]
+    public void Build_AudioOnly_RestrictsFormatSelectorToAudioTrack()
+    {
+        // Regression test: sem "-f bestaudio/best", o yt-dlp baixava vídeo+áudio completo
+        // e só descartava o vídeo depois da extração, desperdiçando banda e tempo.
+        var args = YtDlpArgumentBuilder.Build(MakeOptions(format: DownloadFormat.AudioOnly));
+
+        int formatIndex = args.IndexOf("-f");
+        Assert.True(formatIndex >= 0);
+        Assert.Equal("bestaudio/best", args[formatIndex + 1]);
+    }
+
     [Theory]
     [InlineData(DownloadFormat.Video1080, "1080")]
     [InlineData(DownloadFormat.Video720, "720")]
